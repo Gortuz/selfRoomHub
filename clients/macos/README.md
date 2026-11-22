@@ -26,3 +26,9 @@ En la Mac, después de encender el enchufe, el atajo ejecuta `blueutil --connect
 launchctl bootout gui/$(id -u)/dev.selfroomhub.sleepwatcher
 rm ~/Library/LaunchAgents/dev.selfroomhub.sleepwatcher.plist ~/.config/selfroomhub/macos.env
 ```
+
+Con eso el Bluetooth de la Mac vuelve a su comportamiento normal (sigue prendido al dormir).
+
+- `blueutil` y `sleepwatcher` quedan instalados, pero no hacen nada por sí solos. Para quitarlos: `brew uninstall sleepwatcher blueutil`.
+- Si desinstalas `blueutil`, el atajo "Speakers on" de la Mac seguirá encendiendo el enchufe, pero el paso que conecta el Bluetooth fallará. Quita también esa acción del atajo.
+- Si el Bluetooth de la Mac queda apagado (por ejemplo, si quitaste el agente con la pantalla apagada), préndelo desde el Centro de control o con `blueutil --power 1`.
