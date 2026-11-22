@@ -256,3 +256,11 @@ def test_devices_inyectados_no_leen_config_real(monkeypatch):
 
     monkeypatch.setattr(config, "load_bluetooth", boom)
     create_app(devices={}, token=TOKEN)
+
+
+def test_rish_sin_tty_responde_por_stderr():
+    def run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="status true\n")
+
+    c = BluetoothController(runner=run, rish="/x/rish", dex="/x/b.dex")
+    assert c.is_connected(ADDR) is True

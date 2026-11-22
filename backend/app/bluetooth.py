@@ -70,9 +70,11 @@ class BluetoothController:
             raise BluetoothError(f"No se encuentra rish: {self._rish}") from e
         if res.returncode != 0:
             raise BluetoothError(f"btctl falló (código {res.returncode})")
-        parts = (res.stdout or "").strip().split()
+        # Sin terminal, rish entrega la salida del comando por stderr
+        output = ((res.stdout or "") + (res.stderr or "")).strip()
+        parts = output.splitlines()[-1].split() if output else []
         if len(parts) != 2 or parts[0] != action:
-            raise BluetoothError(f"Salida inesperada de btctl: {(res.stdout or '').strip()!r}")
+            raise BluetoothError(f"Salida inesperada de btctl: {output!r}")
         return parts
 
     def _action(self, action: str, address: str) -> None:
