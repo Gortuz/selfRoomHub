@@ -6,6 +6,12 @@ config/devices.yaml
 .env
 *.token
 
+# Salidas de tinytuya (scan / wizard): IPs, IDs y claves
+snapshot.json
+devices.json
+tinytuya.json
+tuya-raw.json
+
 # Python
 __pycache__/
 *.pyc
