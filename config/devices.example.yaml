@@ -1,0 +1,13 @@
+# Copia este archivo a devices.yaml y ajústalo.
+# Los valores ${VAR} se resuelven desde variables de entorno (.env).
+devices:
+  - id: parlantes
+    name: Parlantes
+    type: tuya
+    device_id: ${TUYA_PARLANTES_ID}
+    address: 192.168.1.50
+    local_key: ${TUYA_PARLANTES_KEY}
+    version: "3.5"
+  - id: demo
+    name: Dispositivo de prueba
+    type: fake

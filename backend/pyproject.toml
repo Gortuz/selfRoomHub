@@ -1,0 +1,26 @@
+[project]
+name = "selfroomhub"
+version = "0.1.0"
+description = "Backend de domótica casera para un cuarto"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "tinytuya",
+    "pyyaml",
+    "python-dotenv",
+]
+
+[dependency-groups]
+dev = ["pytest", "httpx", "ruff"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
