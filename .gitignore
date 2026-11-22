@@ -1,0 +1,17 @@
+# Contexto e instalación personal
+CLAUDE.local.md
+config/devices.yaml
+
+# Secretos
+.env
+*.token
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# macOS
+.DS_Store
