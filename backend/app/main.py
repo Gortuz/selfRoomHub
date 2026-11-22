@@ -71,4 +71,16 @@ def create_app(devices: dict[str, Device] | None = None, token: str | None = Non
             raise HTTPException(status_code=503, detail=str(e)) from e
         return _state(device)
 
+    @app.post("/devices/{device_id}/toggle", dependencies=[Depends(auth)])
+    def toggle(device_id: str) -> dict[str, object]:
+        device = get_device(device_id)
+        st = device.status()
+        if not st.online:
+            raise HTTPException(status_code=503, detail=f"{device_id} está fuera de línea")
+        try:
+            device.off() if st.on else device.on()
+        except DeviceError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        return _state(device)
+
     return app

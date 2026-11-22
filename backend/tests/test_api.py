@@ -39,3 +39,19 @@ def test_power_offline_503(client):
 
 def test_power_requiere_auth(client):
     assert client.post("/devices/lamp/power", json={"on": True}).status_code == 401
+
+
+def test_toggle(client):
+    r = client.post("/devices/lamp/toggle", headers=HEADERS)
+    assert r.status_code == 200 and r.json()["on"] is True
+    r = client.post("/devices/lamp/toggle", headers=HEADERS)
+    assert r.json()["on"] is False
+
+
+def test_toggle_offline_503(client):
+    assert client.post("/devices/dead/toggle", headers=HEADERS).status_code == 503
+
+
+def test_toggle_404_y_auth(client):
+    assert client.post("/devices/nada/toggle", headers=HEADERS).status_code == 404
+    assert client.post("/devices/lamp/toggle").status_code == 401

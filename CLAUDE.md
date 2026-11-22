@@ -68,6 +68,7 @@ NFC / Tasker        ──┘        │
 - `GET /health`
 - `GET /devices`
 - `POST /devices/{id}/power` con body `{"on": true|false}`
+- `POST /devices/{id}/toggle` (invierte el estado; útil para un solo sticker NFC o atajo)
 - `POST /scenes/{name}`
 - `GET /now-playing`, `POST /spotify/{accion}`
 - `GET /weather`
