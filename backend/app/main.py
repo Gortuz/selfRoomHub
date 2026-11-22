@@ -5,6 +5,7 @@ Arranque:
 """
 
 import secrets
+import time
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -12,7 +13,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from app import config
+from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
+
+BT_WAIT_POLLS = 8
 
 
 class PowerRequest(BaseModel):
@@ -24,13 +28,24 @@ def _state(device: Device) -> dict[str, object]:
     return {"id": device.id, "name": device.name, "online": st.online, "on": st.on}
 
 
-def create_app(devices: dict[str, Device] | None = None, token: str | None = None) -> FastAPI:
-    if devices is None or token is None:
+def create_app(
+    devices: dict[str, Device] | None = None,
+    token: str | None = None,
+    bluetooth_targets: dict[str, BluetoothTarget] | None = None,
+    bluetooth_controller: BluetoothController | None = None,
+) -> FastAPI:
+    # Sin inyección se arranca de verdad: se lee .env y la configuración
+    from_config = devices is None or token is None
+    if from_config:
         config.load_env()
         if token is None:
             token = config.get_token()
         if devices is None:
             devices = config.load_devices(config.get_config_path())
+    if bluetooth_targets is None:
+        bluetooth_targets = config.load_bluetooth(config.get_config_path()) if from_config else {}
+    bt_targets = bluetooth_targets
+    bt = bluetooth_controller or BluetoothController()
     expected = token
     registry = devices
 
@@ -47,6 +62,31 @@ def create_app(devices: dict[str, Device] | None = None, token: str | None = Non
         if device is None:
             raise HTTPException(status_code=404, detail=f"Dispositivo no encontrado: {device_id}")
         return device
+
+    def get_target(target_id: str) -> BluetoothTarget:
+        target = bt_targets.get(target_id)
+        if target is None:
+            raise HTTPException(status_code=404, detail=f"Bluetooth no encontrado: {target_id}")
+        return target
+
+    def wait_connected(target: BluetoothTarget, expected: bool) -> None:
+        # connect/disconnect responden al instante, pero el enlace real tarda ~2 s
+        for _ in range(BT_WAIT_POLLS):
+            try:
+                if bt.is_connected(target.address) == expected:
+                    return
+            except BluetoothError:
+                pass
+            time.sleep(1)
+
+    def bt_state(target: BluetoothTarget, strict: bool = False) -> dict[str, object]:
+        try:
+            connected: bool | None = bt.is_connected(target.address)
+        except BluetoothError as e:
+            if strict:
+                raise HTTPException(status_code=503, detail=str(e)) from e
+            connected = None
+        return {"id": target.id, "name": target.name, "connected": connected}
 
     app = FastAPI(title="selfRoomHub")
 
@@ -82,5 +122,29 @@ def create_app(devices: dict[str, Device] | None = None, token: str | None = Non
         except DeviceError as e:
             raise HTTPException(status_code=503, detail=str(e)) from e
         return _state(device)
+
+    @app.get("/bluetooth", dependencies=[Depends(auth)])
+    def list_bluetooth() -> list[dict[str, object]]:
+        return [bt_state(t) for t in bt_targets.values()]
+
+    @app.post("/bluetooth/{target_id}/connect", dependencies=[Depends(auth)])
+    def bt_connect(target_id: str) -> dict[str, object]:
+        target = get_target(target_id)
+        try:
+            bt.connect(target.address)
+        except BluetoothError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        wait_connected(target, True)
+        return bt_state(target, strict=True)
+
+    @app.post("/bluetooth/{target_id}/disconnect", dependencies=[Depends(auth)])
+    def bt_disconnect(target_id: str) -> dict[str, object]:
+        target = get_target(target_id)
+        try:
+            bt.disconnect(target.address)
+        except BluetoothError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        wait_connected(target, False)
+        return bt_state(target, strict=True)
 
     return app

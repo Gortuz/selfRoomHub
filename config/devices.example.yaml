@@ -11,3 +11,9 @@ devices:
   - id: demo
     name: Dispositivo de prueba
     type: fake
+
+# Opcional: dispositivos Bluetooth a los que se conecta el SERVIDOR (ver docs/bluetooth-audio.md)
+bluetooth:
+  - id: parlantes
+    name: Parlantes
+    address: AA:BB:CC:DD:EE:FF

@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 from dotenv import load_dotenv
 
+from app.bluetooth import BluetoothTarget, normalize_address
 from app.devices.base import Device
 from app.devices.registry import build_device
 
@@ -61,3 +62,20 @@ def load_devices(path: Path) -> dict[str, Device]:
             raise ValueError(f"ID de dispositivo duplicado: {device.id}")
         devices[device.id] = device
     return devices
+
+
+def load_bluetooth(path: Path) -> dict[str, BluetoothTarget]:
+    """Sección opcional `bluetooth` de devices.yaml; vacía si no existe."""
+    if not path.is_file():
+        return {}
+    data = yaml.safe_load(path.read_text()) or {}
+    specs = _interpolate(data.get("bluetooth") or [])
+    targets: dict[str, BluetoothTarget] = {}
+    for spec in specs:
+        target = BluetoothTarget(
+            id=spec["id"], name=spec["name"], address=normalize_address(spec["address"])
+        )
+        if target.id in targets:
+            raise ValueError(f"ID de Bluetooth duplicado: {target.id}")
+        targets[target.id] = target
+    return targets

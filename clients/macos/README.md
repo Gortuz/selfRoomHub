@@ -1,4 +1,6 @@
-# Agente de la Mac (opcional)
+# Agente de la Mac (opcional, alternativa no recomendada)
+
+> **Primer intento descartado.** Este agente de sleep/wake se probó primero, pero se descartó en favor de la solución descrita en [`docs/bluetooth-audio.md`](../../docs/bluetooth-audio.md) (el servidor Android como reproductor principal y conexión Bluetooth controlada por la API). Se mantiene documentado solo como alternativa.
 
 Para parlantes Bluetooth emparejados con una Mac y un iPhone. Muchos parlantes se reconectan al último dispositivo al encenderse, y una Mac dormida sigue aceptando conexiones Bluetooth: el parlante termina en la Mac aunque lo enciendas desde el iPhone.
 
