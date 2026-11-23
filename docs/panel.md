@@ -128,3 +128,23 @@ La app expone a la página `window.Android`:
 - `setBrightness(number 0–1)` / `getBrightness()`: brillo de la ventana del panel (se recuerda entre arranques; -1 = el del sistema).
 
 Además la app enciende la pantalla sola cuando empieza a sonar música.
+
+## Temporizador, modo día/noche y rutinas
+
+| Método | Ruta | Auth | Uso |
+|---|---|---|---|
+| POST | `/devices/{id}/timer` | sí | `{"minutes": 45}` apaga el dispositivo tras ese tiempo (cuenta el propio enchufe); `{"minutes": 0}` cancela. 501 si el dispositivo no tiene temporizador |
+| GET | `/mode` | sí | `{"mode": "day"\|"night", "source": "scene"\|"schedule"}` |
+| PUT | `/mode` | sí | `{"mode": "day"\|"night"\|"auto"}`; un modo forzado dura hasta el próximo cambio del horario (`SELFROOMHUB_NIGHT_FROM`/`_TO`, por defecto 23:00 y 06:00); `auto` vuelve al horario |
+| POST | `/routines/{name}` | sí | Ejecuta la escena cuya ventana horaria contiene la hora actual; 409 si ninguna aplica |
+
+Pasos de escena nuevos: `timer: { device, minutes }` y `mode: night | day | auto`.
+
+```yaml
+routines:
+  cama:
+    - { from: "22:00", to: "06:30", scene: noche }   # cruza la medianoche
+    - { from: "06:30", to: "22:00", scene: dia }
+```
+
+El panel consulta `/mode` y, en modo noche, se atenúa, muestra el reloj y no retiene la pantalla aunque haya música.
