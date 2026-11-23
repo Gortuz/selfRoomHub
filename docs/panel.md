@@ -91,3 +91,40 @@ Respuesta:
 ```
 
 `synced` es `null` si LRCLIB solo tiene letra sin tiempos. `404 {"detail": "Sin letra para esta canción"}` si no hay nada o no suena nada; `503` si LRCLIB no responde. El backend cachea por canción.
+
+## Escenas
+
+Una escena es una lista de pasos definida en `config/devices.yaml`; un atajo, un sticker NFC o el panel la disparan con una sola petición.
+
+```yaml
+scenes:
+  charly:
+    - power: { device: parlantes, on: true }
+    - wait: 4
+    - bluetooth: { id: parlantes, connect: true }
+    - media: { action: play_search, query: "Charly García", focus: artist }
+```
+
+Pasos: `power {device, on}`, `toggle {device}`, `bluetooth {id, connect}`, `media {action, value?, query?, focus?}` (encola una orden como `POST /media/command`), `wake` (enciende la pantalla del servidor), `wait <segundos>` (máx. 30).
+
+| Método | Ruta | Auth | Uso |
+|---|---|---|---|
+| GET | `/scenes` | sí | `[{"name": "charly", "steps": 4}]` |
+| POST | `/scenes/{name}` | sí | Ejecuta los pasos en orden; `200 {"name", "ok", "steps": [{"step": "power", "ok": true, "detail": "..."}]}`; un paso que falla no detiene los siguientes (`ok: false` global); 404 si no existe |
+
+## Órdenes nuevas para la app kiosco
+
+`POST /media/command` acepta además:
+
+- `{"action": "play_search", "query": "Charly García", "focus": "artist" | "album" | "playlist" | "any"}`: la app pide al reproductor que busque y reproduzca (Spotify vía `playFromSearch`).
+- `{"action": "wake"}`: la app enciende la pantalla y trae el panel al frente.
+
+## Pantalla y brillo (solo dentro de la app kiosco)
+
+La app expone a la página `window.Android`:
+
+- `setKeepAwake(boolean)`: mantener o soltar la pantalla encendida.
+- `screenOffTimeout()`: tiempo de apagado del sistema en ms.
+- `setBrightness(number 0–1)` / `getBrightness()`: brillo de la ventana del panel (se recuerda entre arranques; -1 = el del sistema).
+
+Además la app enciende la pantalla sola cuando empieza a sonar música.
