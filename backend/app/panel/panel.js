@@ -71,7 +71,12 @@
   function pad(n) { return (n < 10 ? "0" : "") + n; }
   function tick() {
     var now = new Date();
-    $("clock").textContent = pad(now.getHours()) + ":" + pad(now.getMinutes());
+    var hhmm = pad(now.getHours()) + ":" + pad(now.getMinutes());
+    $("clock").textContent = hhmm;
+    if (body.classList.contains("idle") && $("title").textContent !== hhmm) {
+      $("title").textContent = hhmm;
+      fitTitle();
+    }
     $("clock").setAttribute("datetime", now.toISOString());
     $("date").textContent = dateFmt ? dateFmt.format(now) : now.toDateString();
     var h = now.getHours();
@@ -91,28 +96,55 @@
   // --- Lo que suena ---
   var lastArt = null;
 
-  function dominantColor(img) {
-    // Promedio de una versión diminuta de la portada, oscurecido para que no deslumbre
+  var DEFAULT_INKS = ["#ffe600", "#ff3ea5", "#39ff7a"];
+
+  // Tres tintas de afiche desde la portada: los tonos más presentes, llevados a fluorescente
+  function inksFrom(img) {
     try {
-      var c = document.createElement("canvas");
-      c.width = c.height = 16;
+      var size = 24, c = document.createElement("canvas");
+      c.width = c.height = size;
       var ctx = c.getContext("2d");
-      ctx.drawImage(img, 0, 0, 16, 16);
-      var d = ctx.getImageData(0, 0, 16, 16).data, r = 0, g = 0, b = 0, n = 0;
-      for (var i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
-      var k = 0.42;
-      return "rgb(" + Math.round(r / n * k) + "," + Math.round(g / n * k) + "," + Math.round(b / n * k) + ")";
-    } catch (e) { return null; }
+      ctx.drawImage(img, 0, 0, size, size);
+      var d = ctx.getImageData(0, 0, size, size).data, bins = [];
+      for (var b = 0; b < 12; b++) bins.push({ hue: b * 30, weight: 0 });
+      for (var i = 0; i < d.length; i += 4) {
+        var r = d[i] / 255, g = d[i + 1] / 255, bl = d[i + 2] / 255;
+        var max = Math.max(r, g, bl), min = Math.min(r, g, bl), delta = max - min;
+        var light = (max + min) / 2;
+        var sat = delta === 0 ? 0 : delta / (1 - Math.abs(2 * light - 1));
+        if (sat < 0.25 || light < 0.12 || light > 0.92) continue;
+        var h = max === r ? ((g - bl) / delta) % 6 : max === g ? (bl - r) / delta + 2 : (r - g) / delta + 4;
+        h = (h * 60 + 360) % 360;
+        bins[Math.floor(h / 30) % 12].weight += sat;
+      }
+      var picked = bins.filter(function (x) { return x.weight > 2; })
+        .sort(function (a, b2) { return b2.weight - a.weight; }).slice(0, 3)
+        .map(function (x) { return x.hue + 15; });
+      if (!picked.length) return DEFAULT_INKS;
+      var inks = picked.map(function (h) {
+        // Los amarillos y verdes ya son claros; los azules necesitan más luz para leerse sobre negro
+        var l = h > 200 && h < 290 ? 68 : 58;
+        return "hsl(" + Math.round(h) + ", 100%, " + l + "%)";
+      });
+      while (inks.length < 3) inks.push(DEFAULT_INKS[inks.length]);
+      return inks;
+    } catch (e) { return DEFAULT_INKS; }
+  }
+
+  function setInks(inks) {
+    var root = document.documentElement.style;
+    root.setProperty("--ink-1", inks[0]);
+    root.setProperty("--ink-2", inks[1]);
+    root.setProperty("--ink-3", inks[2]);
   }
 
   function showArt(url) {
     if (url === lastArt) return;
     lastArt = url;
-    var cover = $("cover"), backdrop = document.querySelector(".backdrop");
+    var cover = $("cover");
     if (!url) {
       cover.innerHTML = "";
-      backdrop.style.backgroundImage = "";
-      document.documentElement.style.setProperty("--tint", "var(--night)");
+      setInks(DEFAULT_INKS);
       return;
     }
     var img = new Image();
@@ -120,20 +152,39 @@
     img.onload = function () {
       cover.innerHTML = "";
       cover.appendChild(img);
-      backdrop.style.backgroundImage = "url('" + url + "')";
-      var color = dominantColor(img);
-      if (color) document.documentElement.style.setProperty("--tint", color);
+      setInks(inksFrom(img));
     };
     img.src = url;
   }
+
+  // El título ocupa todo el espacio libre del afiche: se busca el tamaño mayor que entra
+  function fitTitle() {
+    var title = $("title"), poster = $("track");
+    var avail = poster.clientHeight - ($("artist").offsetHeight || 0) - 12;
+    var width = poster.clientWidth;
+    if (avail <= 0 || width <= 0) return;
+    var size = Math.min(avail, body.classList.contains("idle") ? 260 : 132);
+    title.style.fontSize = size + "px";
+    while (size > 18 && (title.scrollHeight > avail || title.scrollWidth > width)) {
+      size -= 3;
+      title.style.fontSize = size + "px";
+    }
+  }
+  window.addEventListener("resize", fitTitle);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTitle);
 
   function renderNowPlaying(np) {
     var hasTrack = !!(np && np.title);
     state.playing = !!(np && np.playing);
     body.classList.toggle("idle", !hasTrack);
     $("track").classList.toggle("paused", hasTrack && !np.playing);
-    $("title").textContent = hasTrack ? np.title : "";
-    $("artist").textContent = hasTrack ? (np.artist || "") : "";
+    var title = hasTrack ? np.title : $("clock").textContent;
+    var artist = hasTrack ? (np.artist || "") : "";
+    if ($("title").textContent !== title || $("artist").textContent !== artist) {
+      $("title").textContent = title;
+      $("artist").textContent = artist;
+      fitTitle();
+    }
     showArt(hasTrack ? np.art_url : null);
 
     var pp = $("playpause");
@@ -144,7 +195,7 @@
       state.volume = np.volume;
       if (!dragging) {
         $("volume").value = np.volume;
-        $("volume-value").textContent = np.volume + " %";
+        showVolume(np.volume);
       }
     }
     // Los controles solo tienen sentido si la app del servidor está informando
@@ -169,9 +220,13 @@
 
   var dragging = false;
   var volume = $("volume");
+  function showVolume(v) {
+    $("volume-value").textContent = v + " %";
+    volume.style.setProperty("--fill", v + "%");
+  }
   volume.addEventListener("input", function () {
     dragging = true;
-    $("volume-value").textContent = volume.value + " %";
+    showVolume(volume.value);
   });
   volume.addEventListener("change", function () {
     dragging = false;

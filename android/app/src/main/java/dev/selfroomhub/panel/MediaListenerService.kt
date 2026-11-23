@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -36,7 +38,11 @@ class MediaListenerService : NotificationListenerService() {
 
     private var controllers: List<MediaController> = emptyList()
     private var current: MediaController? = null
-    private var lastArtHash: String? = null
+    @Volatile private var lastArtHash: String? = null
+    // Solo se tocan desde el executor `io`.
+    private var artCacheKey: String? = null
+    private var artCacheBytes: ByteArray? = null
+    private var artCacheLog: String = ""
     private var connected = false
 
     private lateinit var audio: AudioManager
@@ -153,23 +159,25 @@ class MediaListenerService : NotificationListenerService() {
         if (!connected) return
         val c = current
         val json = JSONObject()
+        var md: MediaMetadata? = null
         json.put("volume", volumePercent())
         if (c == null) {
             json.put("playing", false)
             lastArtHash = null
         } else {
-            val md = c.metadata
+            md = c.metadata
             json.put("playing", isPlaying(c))
             json.put("title", md?.text(MediaMetadata.METADATA_KEY_TITLE, MediaMetadata.METADATA_KEY_DISPLAY_TITLE))
             json.put("artist", md?.text(MediaMetadata.METADATA_KEY_ARTIST, MediaMetadata.METADATA_KEY_ALBUM_ARTIST))
             json.put("album", md?.text(MediaMetadata.METADATA_KEY_ALBUM))
             json.put("app", c.packageName)
-            json.put("art_base64", md?.let { artIfChanged(it) } ?: JSONObject.NULL)
         }
-        val body = json.toString()
-        val hash = lastArtHash
+        val withArt = c != null
         io.execute {
-            if (!put(body)) {
+            // La portada (posible descarga) se resuelve fuera del hilo principal.
+            json.put("art_base64", (if (withArt) md?.let { artIfChanged(it) } else null) ?: JSONObject.NULL)
+            val hash = lastArtHash
+            if (!put(json.toString())) {
                 // Que el siguiente envio vuelva a incluir la portada.
                 if (hash != null && lastArtHash == hash) lastArtHash = null
             }
@@ -315,12 +323,47 @@ class MediaListenerService : NotificationListenerService() {
         return JSONObject.NULL
     }
 
+    /** Corre en `io`. Devuelve la portada en base64 solo si cambio. */
     private fun artIfChanged(md: MediaMetadata): String? {
-        val bmp = md.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-            ?: md.getBitmap(MediaMetadata.METADATA_KEY_ART)
-            ?: md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-            ?: return null
-        val bytes = encode(bmp)
+        val uris = URI_KEYS.mapNotNull { k -> md.getString(k)?.trim()?.takeIf { it.isNotEmpty() }?.let { k to it } }
+        val key = uris.joinToString("|") { it.second }
+        val bytes: ByteArray
+        if (key.isNotEmpty() && key == artCacheKey && artCacheBytes != null) {
+            bytes = artCacheBytes!!
+        } else {
+            var found: ByteArray? = null
+            var label = ""
+            for ((k, u) in uris) {
+                val bmp = try { fetchBitmap(u) } catch (e: Exception) {
+                    Log.w(TAG, "art: fallo $k: ${e.message}")
+                    null
+                } ?: continue
+                if (minOf(bmp.width, bmp.height) < MIN_ART_SIDE) continue
+                found = encode(bmp)
+                label = "${k.removePrefix("android.media.metadata.")} ${u.take(80)}"
+                break
+            }
+            if (found == null) {
+                val (name, bmp) = listOf(
+                    "ALBUM_ART" to MediaMetadata.METADATA_KEY_ALBUM_ART,
+                    "ART" to MediaMetadata.METADATA_KEY_ART,
+                    "DISPLAY_ICON" to MediaMetadata.METADATA_KEY_DISPLAY_ICON,
+                ).firstNotNullOfOrNull { (n, k) -> md.getBitmap(k)?.let { n to it } } ?: return null
+                found = encode(bmp)
+                label = "$name bitmap ${bmp.width}x${bmp.height}"
+                // Sin cache: el bitmap ya esta en memoria y el hash evita reenviar.
+                artCacheKey = null
+                artCacheBytes = null
+            } else {
+                artCacheKey = key
+                artCacheBytes = found
+            }
+            bytes = found
+            val size = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                .also { BitmapFactory.decodeByteArray(found, 0, found.size, it) }
+            artCacheLog = "art: $label -> ${size.outWidth}x${size.outHeight}"
+            Log.i(TAG, artCacheLog)
+        }
         val hash = MessageDigest.getInstance("SHA-1").digest(bytes)
             .joinToString("") { "%02x".format(it) }
         if (hash == lastArtHash) return null
@@ -328,8 +371,44 @@ class MediaListenerService : NotificationListenerService() {
         return Base64.encodeToString(bytes, Base64.NO_WRAP)
     }
 
+    private fun fetchBitmap(uri: String): Bitmap? {
+        val data: ByteArray = when {
+            uri.startsWith("https://") || uri.startsWith("http://") -> download(uri)
+            uri.startsWith("spotify:image:") ->
+                download("https://i.scdn.co/image/" + uri.removePrefix("spotify:image:"))
+            uri.startsWith("content://") || uri.startsWith("android.resource://") ->
+                contentResolver.openInputStream(Uri.parse(uri))?.use { readLimited(it) } ?: return null
+            else -> return null
+        }
+        return BitmapFactory.decodeByteArray(data, 0, data.size)
+    }
+
+    private fun download(url: String): ByteArray {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            if (conn.responseCode !in 200..299) error("HTTP ${conn.responseCode}")
+            return conn.inputStream.use { readLimited(it) }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun readLimited(input: java.io.InputStream): ByteArray {
+        val out = ByteArrayOutputStream()
+        val buf = ByteArray(8192)
+        while (true) {
+            val n = input.read(buf)
+            if (n < 0) break
+            out.write(buf, 0, n)
+            if (out.size() >= MAX_ART_BYTES) break
+        }
+        return out.toByteArray()
+    }
+
     private fun encode(src: Bitmap): ByteArray {
-        val max = 600
+        val max = 1000
         val scale = minOf(1f, max.toFloat() / maxOf(src.width, src.height))
         val bmp = if (scale < 1f) {
             Bitmap.createScaledBitmap(
@@ -339,7 +418,7 @@ class MediaListenerService : NotificationListenerService() {
         } else src
         val out = ByteArrayOutputStream()
         // JPEG no tiene alfa: se aplana si hace falta.
-        bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+        bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
         return out.toByteArray()
     }
 
@@ -369,6 +448,13 @@ class MediaListenerService : NotificationListenerService() {
 
     private companion object {
         const val TAG = "MediaListener"
+        const val MIN_ART_SIDE = 400
+        const val MAX_ART_BYTES = 3 * 1024 * 1024
+        val URI_KEYS = listOf(
+            MediaMetadata.METADATA_KEY_ALBUM_ART_URI,
+            MediaMetadata.METADATA_KEY_ART_URI,
+            MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI,
+        )
         const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
         const val EXTRA_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE"
     }

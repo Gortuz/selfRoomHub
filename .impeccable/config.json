@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "backend/app/panel/index.html"
+        ],
+        "createdAt": "2026-11-23T01:38:14.257Z",
+        "reason": "Claude decided: the only glow is the 12px amber status LED, a literal hardware-LED indicator in the audio-gear vocabulary of the panel (Eris studio monitors); not decorative"
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "backend/app/panel/panel.css"
+        ],
+        "createdAt": "2026-11-23T02:04:14.450Z",
+        "reason": "User chose the 'Afiche chicha' direction; its recorded signature is the title painted in hard-stop horizontal bands of flat ink (chicha poster lettering), not a smooth decorative gradient"
+      }
+    ]
+  }
+}
