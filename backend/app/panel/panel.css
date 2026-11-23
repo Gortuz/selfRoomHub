@@ -223,8 +223,19 @@ html, body {
   background: var(--night);
   font-size: 18px; line-height: 1.5;
 }
-.setup p { max-width: 46ch; }
-.setup code { color: var(--led-on); }
+.setup-form { display: flex; flex-direction: column; width: 100%; max-width: 440px; min-width: 0; }
+.setup-title { font-weight: 700; font-size: 22px; }
+.setup-help { margin: 8px 0 16px; color: var(--ink-soft); font-size: 16px; }
+.setup code { color: var(--led-on); overflow-wrap: anywhere; }
+.setup input {
+  width: 100%; min-width: 0;
+  min-height: 48px; padding: 0 14px; margin-bottom: 12px;
+  border: 1px solid var(--ink-faint); border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25); color: var(--ink); font: inherit; font-size: 17px;
+}
+.setup input:focus-visible { outline: 2px solid var(--led-on); outline-offset: 2px; }
+.setup .action { margin: 0; }
+.setup-error { margin: 0 0 12px; color: var(--alert); font-size: 15px; }
 
 /* De noche el cuarto está oscuro: el panel se atenúa entero. */
 body.night .panel, body.night .backdrop { opacity: 0.42; }

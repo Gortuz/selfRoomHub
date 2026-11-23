@@ -72,7 +72,13 @@
   </div>
 
   <div id="setup" class="setup" hidden>
-    <p>Falta el token. Abre este panel como <code>/panel/#token=TU_TOKEN</code>; se guarda en este equipo y no hace falta repetirlo.</p>
+    <form id="setup-form" class="setup-form">
+      <label for="setup-token" class="setup-title">Pega el token del servidor</label>
+      <p class="setup-help">Es el de <code>SELFROOMHUB_TOKEN</code> en <code>backend/.env</code>. Se guarda en este equipo y no se vuelve a pedir.</p>
+      <input id="setup-token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+      <p id="setup-error" class="setup-error" role="alert" hidden></p>
+      <button type="submit" class="action action-primary">Guardar</button>
+    </form>
   </div>
 
   <script src="panel.js"></script>

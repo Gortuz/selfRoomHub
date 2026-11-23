@@ -23,6 +23,24 @@
   if (m && history.replaceState) history.replaceState(null, "", location.pathname);
   if (!token) { $("setup").hidden = false; }
 
+  // Sin token (p. ej. la app de pantalla de inicio de iOS tiene su propio almacenamiento): se pega aquí
+  $("setup-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var candidate = $("setup-token").value.trim();
+    fetch("/devices", { headers: { Authorization: "Bearer " + candidate } })
+      .then(function (r) {
+        if (r.status === 401) throw new Error("Ese token no es válido. Cópialo de nuevo.");
+        if (!r.ok) throw new Error("El servidor respondió " + r.status + ".");
+        try { localStorage.setItem("srh-token", candidate); } catch (err) { /* sin almacenamiento: dura esta sesión */ }
+        token = candidate;
+        location.reload();
+      })
+      .catch(function (err) {
+        $("setup-error").textContent = err.message || "No hay conexión con el servidor.";
+        $("setup-error").hidden = false;
+      });
+  });
+
   function api(method, path, data) {
     var opts = { method: method, headers: { Authorization: "Bearer " + token } };
     if (data !== undefined) {
@@ -30,6 +48,10 @@
       opts.body = JSON.stringify(data);
     }
     return fetch(path, opts).then(function (r) {
+      if (r.status === 401) {
+        try { localStorage.removeItem("srh-token"); } catch (e) { /* nada */ }
+        $("setup").hidden = false;
+      }
       if (!r.ok) {
         return r.json().catch(function () { return {}; }).then(function (b) {
           var err = new Error(typeof b.detail === "string" ? b.detail : "Error " + r.status);
