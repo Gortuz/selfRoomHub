@@ -705,6 +705,70 @@
     $("sky-art").innerHTML = svg.join("");
   }
 
+  // --- Brillo (solo dentro de la app kiosco) y apagado de pantalla por inactividad ---
+  var android = window.Android || null;
+  var hasScreenApi = !!(android && android.setKeepAwake && android.setBrightness);
+
+  var lightRail = $("light-rail"), lightDragging = false;
+  function showLight(v) {
+    $("light-value").textContent = v + " %";
+    $("light-fill").style.height = v + "%";
+    $("light-cap").style.bottom = v + "%";
+    lightRail.setAttribute("aria-valuenow", v);
+  }
+  function setLight(v) {
+    v = Math.max(2, Math.min(100, Math.round(v)));
+    showLight(v);
+    if (hasScreenApi) android.setBrightness(v / 100);
+  }
+  function lightAt(clientY) {
+    var r = lightRail.getBoundingClientRect();
+    return (1 - (clientY - r.top) / r.height) * 100;
+  }
+  if (hasScreenApi) {
+    $("light").hidden = false;
+    var saved = android.getBrightness();
+    showLight(saved > 0 ? Math.round(saved * 100) : 60);
+    // El brillo se ve en vivo mientras se arrastra
+    lightRail.addEventListener("pointerdown", function (e) {
+      lightDragging = true;
+      if (lightRail.setPointerCapture && e.pointerId !== undefined) lightRail.setPointerCapture(e.pointerId);
+      lightRail.classList.add("dragging");
+      setLight(lightAt(e.clientY));
+      e.preventDefault();
+    });
+    lightRail.addEventListener("pointermove", function (e) { if (lightDragging) setLight(lightAt(e.clientY)); });
+    function lightUp() { lightDragging = false; lightRail.classList.remove("dragging"); }
+    lightRail.addEventListener("pointerup", lightUp);
+    lightRail.addEventListener("pointercancel", lightUp);
+    var current = function () { return parseInt(lightRail.getAttribute("aria-valuenow"), 10) || 60; };
+    $("light-up").addEventListener("click", function () { setLight(current() + 10); });
+    $("light-down").addEventListener("click", function () { setLight(current() - 10); });
+    lightRail.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowUp") { setLight(current() + 10); e.preventDefault(); }
+      if (e.key === "ArrowDown") { setLight(current() - 10); e.preventDefault(); }
+    });
+  }
+
+  // La pantalla se apaga a los 2 min sin música ni toques. Android la apaga cuando pasa su propio
+  // tiempo (screen_off_timeout) sin que la app la retenga, así que se retiene solo la diferencia.
+  var IDLE_LIMIT = 2 * 60 * 1000;
+  var lastTouch = Date.now(), keptAwake = true;
+  function markActive() { lastTouch = Date.now(); updateAwake(); }
+  ["pointerdown", "keydown"].forEach(function (ev) { document.addEventListener(ev, markActive, true); });
+  window.srhWake = markActive;   // la app lo llama al encender la pantalla
+  function updateAwake() {
+    if (!hasScreenApi) return;
+    var timeout = android.screenOffTimeout ? android.screenOffTimeout() : 60000;
+    var hold = Math.max(0, IDLE_LIMIT - timeout);
+    var want = state.playing || !$("sheet").hidden || Date.now() - lastTouch < hold;
+    if (want !== keptAwake) {
+      keptAwake = want;
+      android.setKeepAwake(want);
+    }
+  }
+  setInterval(updateAwake, 5000);
+
   tick();
   render();
   refreshHealth(); refreshDevices(); refreshAudio(); refreshNowPlaying();

@@ -2,6 +2,7 @@
 
 import os
 import re
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from dotenv import load_dotenv
 from app.bluetooth import BluetoothTarget, normalize_address
 from app.devices.base import Device
 from app.devices.registry import build_device
+from app.scenes import Step, parse_scenes
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = BACKEND_DIR.parent
@@ -79,3 +81,13 @@ def load_bluetooth(path: Path) -> dict[str, BluetoothTarget]:
             raise ValueError(f"ID de Bluetooth duplicado: {target.id}")
         targets[target.id] = target
     return targets
+
+
+def load_scenes(
+    path: Path, device_ids: Collection[str], bt_ids: Collection[str]
+) -> dict[str, list[Step]]:
+    """Sección opcional `scenes` de devices.yaml; vacía si no existe."""
+    if not path.is_file():
+        return {}
+    data = yaml.safe_load(path.read_text()) or {}
+    return parse_scenes(_interpolate(data.get("scenes")), device_ids, bt_ids)

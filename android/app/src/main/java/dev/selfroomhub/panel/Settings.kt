@@ -10,6 +10,7 @@ object Settings {
     const val DEFAULT_BASE_URL = "http://127.0.0.1:8000"
     private const val KEY_TOKEN = "token"
     private const val KEY_BASE_URL = "base_url"
+    private const val KEY_BRIGHTNESS = "brightness"
 
     @Volatile
     private var prefs: SharedPreferences? = null
@@ -37,6 +38,13 @@ object Settings {
     fun baseUrl(context: Context): String =
         (prefs(context).getString(KEY_BASE_URL, null)?.takeIf { it.isNotBlank() }
             ?: DEFAULT_BASE_URL).trimEnd('/')
+
+    /** Brillo de la ventana (0.01-1) o -1 para el del sistema. */
+    fun brightness(context: Context): Float = prefs(context).getFloat(KEY_BRIGHTNESS, -1f)
+
+    fun saveBrightness(context: Context, value: Float) {
+        prefs(context).edit().putFloat(KEY_BRIGHTNESS, value).apply()
+    }
 
     fun save(context: Context, token: String?, baseUrl: String?) {
         prefs(context).edit().apply {

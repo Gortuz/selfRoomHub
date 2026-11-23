@@ -14,7 +14,11 @@ import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Build
+import android.app.SearchManager
 import android.os.Handler
+import android.os.Bundle
+import android.os.PowerManager
+import android.provider.MediaStore
 import android.os.Looper
 import android.os.SystemClock
 import android.service.notification.NotificationListenerService
@@ -69,6 +73,7 @@ class MediaListenerService : NotificationListenerService() {
         override fun onPlaybackStateChanged(state: PlaybackState?) {
             // Puede cambiar cual sesion es la "activa" (la que esta en PLAYING).
             pickCurrent()
+            checkPlayingTransition()
             scheduleSend()
         }
         override fun onSessionDestroyed() = refresh()
@@ -133,7 +138,42 @@ class MediaListenerService : NotificationListenerService() {
         controllers = list
         list.forEach { it.registerCallback(callback, main) }
         pickCurrent()
+        checkPlayingTransition()
         scheduleSend()
+    }
+
+    private var wasPlaying = false
+
+    /** Enciende la pantalla cuando alguna sesion pasa a PLAYING (y antes no habia ninguna). */
+    private fun checkPlayingTransition() {
+        val now = controllers.any { isPlaying(it) }
+        if (now && !wasPlaying) wakeScreen()
+        wasPlaying = now
+    }
+
+    /**
+     * Despierta la pantalla con un wake lock y trae el panel al frente (intent a la actividad).
+     * El servicio es un NotificationListener ligado por el sistema; si Android bloquea el inicio
+     * de la actividad desde segundo plano, queda solo el wake lock.
+     */
+    @Suppress("DEPRECATION")
+    private fun wakeScreen() {
+        runCatching {
+            val pm = getSystemService(PowerManager::class.java)
+            pm.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "selfRoomHub:wake",
+            ).acquire(10_000)
+        }.onFailure { Log.w(TAG, "wake lock fallo", it) }
+        try {
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .putExtra(EXTRA_WAKE, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "no se pudo abrir el panel; solo wake lock", e)
+        }
     }
 
     private fun release() {
@@ -297,9 +337,11 @@ class MediaListenerService : NotificationListenerService() {
             if (id > lastCommandId) lastCommandId = id
             val action = o.optString("action")
             val value = if (o.isNull("value")) null else o.optDouble("value")
+            val query = if (o.isNull("query")) null else o.optString("query").takeIf { it.isNotBlank() }
+            val focus = if (o.isNull("focus")) "any" else o.optString("focus", "any")
             main.post {
                 try {
-                    execute(action, value)
+                    execute(action, value, query, focus)
                 } catch (e: Exception) {
                     Log.w(TAG, "orden $action fallo", e)
                 }
@@ -308,7 +350,7 @@ class MediaListenerService : NotificationListenerService() {
     }
 
     /** Corre en el hilo principal. */
-    private fun execute(action: String, value: Double?) {
+    private fun execute(action: String, value: Double?, query: String? = null, focus: String = "any") {
         if (!connected) return
         val tc = current?.transportControls
         when (action) {
@@ -322,8 +364,46 @@ class MediaListenerService : NotificationListenerService() {
                 val v = (value.coerceIn(0.0, 100.0) / 100.0 * max).roundToInt()
                 audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
             }
+            "wake" -> wakeScreen()
+            "play_search" -> if (query != null) playSearch(query, focus) else Log.w(TAG, "play_search sin query")
             else -> Log.w(TAG, "orden desconocida: $action")
         }
+    }
+
+    private fun searchExtras(query: String, focus: String): Bundle = Bundle().apply {
+        when (focus) {
+            "artist" -> {
+                putString(MediaStore.EXTRA_MEDIA_FOCUS, MediaStore.Audio.Artists.ENTRY_CONTENT_TYPE)
+                putString(MediaStore.EXTRA_MEDIA_ARTIST, query)
+            }
+            "album" -> {
+                putString(MediaStore.EXTRA_MEDIA_FOCUS, MediaStore.Audio.Albums.ENTRY_CONTENT_TYPE)
+                putString(MediaStore.EXTRA_MEDIA_ALBUM, query)
+            }
+            "playlist" -> {
+                putString(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/playlist")
+                putString(MediaStore.EXTRA_MEDIA_PLAYLIST, query)
+            }
+        }
+    }
+
+    private fun playSearch(query: String, focus: String) {
+        val extras = searchExtras(query, focus)
+        val c = controllers.firstOrNull { it.packageName == SPOTIFY } ?: current
+        if (c != null) {
+            Log.i(TAG, "play_search via controlador ${c.packageName}: \"$query\" ($focus)")
+            c.transportControls.playFromSearch(query, extras)
+            return
+        }
+        Log.i(TAG, "play_search via intent a $SPOTIFY: \"$query\" ($focus)")
+        wakeScreen()
+        startActivity(
+            Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH)
+                .setPackage(SPOTIFY)
+                .putExtra(SearchManager.QUERY, query)
+                .putExtras(extras)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     private fun play(tc: MediaController.TransportControls?) {
@@ -466,6 +546,7 @@ class MediaListenerService : NotificationListenerService() {
 
     private companion object {
         const val TAG = "MediaListener"
+        const val SPOTIFY = "com.spotify.music"
         const val MIN_ART_SIDE = 400
         const val MAX_ART_BYTES = 3 * 1024 * 1024
         val URI_KEYS = listOf(

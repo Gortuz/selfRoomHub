@@ -430,6 +430,15 @@ html, body {
   -webkit-text-fill-color: transparent;
   font-variant-numeric: tabular-nums;
 }
+.channel-light {
+  position: absolute;
+  top: var(--pad); bottom: calc(var(--pad) + 14px);
+  right: max(var(--pad), env(safe-area-inset-right));
+  height: auto;
+  margin: 0;
+}
+.channel-light .rail-fill { background: var(--sky-1, var(--ink-1)); }
+.channel-light .step, .channel-light .rail { background: rgba(12, 11, 14, 0.55); }
 .sky-date { margin: 10px 0 0 4px; font-weight: 700; font-size: clamp(16px, 5vh, 24px); color: var(--bone); }
 .sky-date::first-letter { text-transform: uppercase; }
 

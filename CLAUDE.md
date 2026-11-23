@@ -71,7 +71,7 @@ NFC / Tasker        ──┘        │
 - `GET /devices`
 - `POST /devices/{id}/power` con body `{"on": true|false}`
 - `POST /devices/{id}/toggle` (invierte el estado; útil para un solo sticker NFC o atajo)
-- `POST /scenes/{name}`
+- `GET /scenes`, `POST /scenes/{name}`
 - `GET /bluetooth`: lista los dispositivos Bluetooth configurados y si el servidor está conectado a cada uno
 - `POST /bluetooth/{id}/connect`: conecta el servidor a ese dispositivo Bluetooth
 - `POST /bluetooth/{id}/disconnect`: desconecta el servidor de ese dispositivo Bluetooth

@@ -1,6 +1,7 @@
 """Cola en memoria de órdenes de reproducción y volumen para la app kiosco."""
 
 import asyncio
+import threading
 import time
 from collections import deque
 from collections.abc import Callable
@@ -12,18 +13,28 @@ from pydantic import BaseModel, Field, model_validator
 
 TTL_S = 10.0
 MAX_QUEUED = 50
+MAX_QUERY = 200
 
 
 class MediaCommand(BaseModel):
-    action: Literal["toggle", "play", "pause", "next", "previous", "volume"]
+    action: Literal["toggle", "play", "pause", "next", "previous", "volume", "play_search", "wake"]
     value: int | None = Field(default=None, ge=0, le=100)
+    query: str | None = Field(default=None, max_length=MAX_QUERY)
+    focus: Literal["artist", "album", "playlist", "any"] | None = None
 
     @model_validator(mode="after")
-    def check_value(self) -> Self:
+    def check_fields(self) -> Self:
         if self.action == "volume" and self.value is None:
             raise ValueError("volume exige value (0-100)")
         if self.action != "volume" and self.value is not None:
             raise ValueError("value solo se admite con volume")
+        if self.action == "play_search":
+            if self.query is None or not self.query.strip():
+                raise ValueError("play_search exige query no vacía")
+            if self.focus is None:
+                self.focus = "any"
+        elif self.query is not None or self.focus is not None:
+            raise ValueError("query y focus solo se admiten con play_search")
         return self
 
 
@@ -34,12 +45,16 @@ class QueuedCommand:
     value: int | None
     created_at: str
     expires_at: float  # monotonic
+    query: str | None = None
+    focus: str | None = None
 
     def to_json(self) -> dict[str, object]:
         return {
             "id": self.id,
             "action": self.action,
             "value": self.value,
+            "query": self.query,
+            "focus": self.focus,
             "created_at": self.created_at,
         }
 
@@ -56,25 +71,33 @@ class CommandQueue:
         self._last_id = 0
         # Un evento por esperador: así funciona aunque cada petición use otro loop
         self._waiters: list[tuple[asyncio.AbstractEventLoop, asyncio.Event]] = []
+        # `add` también se llama desde hilos (escenas en el threadpool): el lock lo hace seguro
+        self._lock = threading.Lock()
 
     def add(self, command: MediaCommand) -> int:
-        self._last_id += 1
-        self._items.append(
-            QueuedCommand(
-                id=self._last_id,
-                action=command.action,
-                value=command.value,
-                created_at=datetime.now().astimezone().isoformat(timespec="seconds"),
-                expires_at=self._clock() + self._ttl,
+        with self._lock:
+            self._last_id += 1
+            self._items.append(
+                QueuedCommand(
+                    id=self._last_id,
+                    action=command.action,
+                    value=command.value,
+                    created_at=datetime.now().astimezone().isoformat(timespec="seconds"),
+                    expires_at=self._clock() + self._ttl,
+                    query=command.query,
+                    focus=command.focus,
+                )
             )
-        )
-        for loop, event in self._waiters:
+            new_id = self._last_id
+            waiters = list(self._waiters)
+        for loop, event in waiters:
             loop.call_soon_threadsafe(event.set)
-        return self._last_id
+        return new_id
 
     def after(self, after: int) -> list[QueuedCommand]:
         now = self._clock()
-        return [c for c in self._items if c.id > after and c.expires_at > now]
+        with self._lock:
+            return [c for c in self._items if c.id > after and c.expires_at > now]
 
     async def wait_after(self, after: int, timeout: float) -> list[QueuedCommand]:
         """Como `after`, pero espera hasta `timeout` s si aún no hay órdenes."""
@@ -83,11 +106,13 @@ class CommandQueue:
             return found
         event = asyncio.Event()
         entry = (asyncio.get_running_loop(), event)
-        self._waiters.append(entry)
+        with self._lock:
+            self._waiters.append(entry)
         try:
             await asyncio.wait_for(event.wait(), timeout)
         except TimeoutError:
             pass
         finally:
-            self._waiters.remove(entry)
+            with self._lock:
+                self._waiters.remove(entry)
         return self.after(after)

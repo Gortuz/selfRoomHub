@@ -75,3 +75,18 @@ Para que Android no mate la app ni el servicio de medios:
 - Haz lo mismo con Termux, Termux:Boot y Termux:API.
 
 > `base_url` solo acepta direcciones locales (`127.0.0.1`, `localhost`, `::1`): la actividad es pública y cualquier app del teléfono podría intentar mandar otro servidor para quedarse con el token.
+
+## Pantalla, brillo y órdenes de reproducción
+
+`window.Android` además expone (sin permisos especiales):
+
+- `setKeepAwake(bool)`: añade o quita `FLAG_KEEP_SCREEN_ON` (por defecto activo al arrancar).
+- `screenOffTimeout()`: `SCREEN_OFF_TIMEOUT` del sistema en ms (60000 si no se puede leer).
+- `setBrightness(f)` / `getBrightness()`: brillo de la ventana, acotado a 0.01-1 (`-1` = sistema). Se guarda y se reaplica en `onResume`. Solo afecta a esta app.
+
+Órdenes del long-poll `/media/commands` (las ejecuta `MediaListenerService`):
+
+- `wake`: adquiere un wake lock `SCREEN_BRIGHT_WAKE_LOCK | ACQUIRE_CAUSES_WAKEUP` de 10 s (permiso `WAKE_LOCK`) y lanza `MainActivity` con el extra `wake=true` (`NEW_TASK | REORDER_TO_FRONT`). La actividad activa `turnScreenOn`/`showWhenLocked`, repone `KEEP_SCREEN_ON` y ejecuta `window.srhWake && window.srhWake()` en la página. Se dispara también cuando una sesión de medios pasa a PLAYING.
+- `play_search {query, focus}`: si hay controlador activo (se prefiere Spotify) usa `transportControls.playFromSearch` con `EXTRA_MEDIA_FOCUS` según `focus` (`artist`, `album`, `playlist`, `any` sin focus). Sin controlador, enciende la pantalla y lanza `MEDIA_PLAY_FROM_SEARCH` con `setPackage("com.spotify.music")` (el manifiesto declara `<queries>` para ese paquete).
+
+Límites: el sistema puede bloquear el inicio de actividades desde segundo plano o con la pantalla apagada; si pasa, solo actúa el wake lock (se registra en logcat, etiqueta `MediaListener`). Con pantalla bloqueada con PIN no se descarta el bloqueo. `playFromSearch` depende de que Spotify lo soporte; el resultado puede variar.

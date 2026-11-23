@@ -32,6 +32,7 @@ from app.devices.base import Device, DeviceError
 from app.lyrics import LyricsClient, LyricsFetcher, LyricsUnavailable
 from app.media import CommandQueue, MediaCommand
 from app.now_playing import ArtError, NowPlaying, NowPlayingUpdate
+from app.scenes import SceneContext, Step, run_scene
 
 BT_WAIT_POLLS = 8
 HEALTH_CACHE_S = 60
@@ -68,6 +69,7 @@ def create_app(
     battery: BatteryMonitor | None = None,
     notifier: Notifier | None = None,
     battery_watch: bool | None = None,
+    scenes: dict[str, list[Step]] | None = None,
 ) -> FastAPI:
     # Sin inyección se arranca de verdad: se lee .env y la configuración
     from_config = devices is None or token is None
@@ -80,6 +82,11 @@ def create_app(
     if bluetooth_targets is None:
         bluetooth_targets = config.load_bluetooth(config.get_config_path()) if from_config else {}
     bt_targets = bluetooth_targets
+    if scenes is None:
+        scenes = (
+            config.load_scenes(config.get_config_path(), devices, bt_targets) if from_config else {}
+        )
+    scene_defs = scenes
     bt = bluetooth_controller or BluetoothController()
     expected = token
     registry = devices
@@ -135,6 +142,7 @@ def create_app(
     now_playing = NowPlaying()
     media_queue = CommandQueue()
     lyrics = LyricsClient(lyrics_fetcher)
+    scene_ctx = SceneContext(registry, bt, bt_targets, media_queue)
 
     battery_monitor = battery or BatteryMonitor()
     thresholds = thresholds_from_env()
@@ -254,6 +262,19 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(e)) from e
         wait_connected(target, False)
         return bt_state(target, strict=True)
+
+    @app.get("/scenes", dependencies=[Depends(auth)])
+    def list_scenes() -> list[dict[str, object]]:
+        return [{"name": n, "steps": len(s)} for n, s in scene_defs.items()]
+
+    # def: los pasos tienen esperas y corren en el threadpool
+    @app.post("/scenes/{name}", dependencies=[Depends(auth)])
+    def post_scene(name: str) -> dict[str, object]:
+        steps = scene_defs.get(name)
+        if steps is None:
+            raise HTTPException(status_code=404, detail=f"Escena no encontrada: {name}")
+        results = run_scene(steps, scene_ctx)
+        return {"name": name, "ok": all(r["ok"] for r in results), "steps": results}
 
     @app.get("/now-playing", dependencies=[Depends(auth)])
     def read_now_playing() -> dict[str, object]:

@@ -44,6 +44,8 @@ class MainActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         overridePendingTransition(0, 0)
         applyIntentConfig(intent)
+        applyBrightness()
+        if (intent?.getBooleanExtra(EXTRA_WAKE, false) == true) wakeScreen()
 
         webView = WebView(this).apply {
             setBackgroundColor(Color.BLACK)
@@ -101,12 +103,43 @@ class MainActivity : Activity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_WAKE, false)) wakeScreen()
         if (applyIntentConfig(intent)) load()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemBars()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        applyBrightness()
+    }
+
+    private fun applyBrightness() {
+        val b = Settings.brightness(this)
+        window.attributes = window.attributes.apply {
+            screenBrightness = if (b < 0f) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE else b.coerceIn(0.01f, 1f)
+        }
+    }
+
+    /** Enciende la pantalla (incluso bloqueada), la mantiene encendida y avisa a la pagina. */
+    private fun wakeScreen() {
+        if (Build.VERSION.SDK_INT >= 27) {
+            setTurnScreenOn(true)
+            setShowWhenLocked(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED,
+            )
+        }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (::webView.isInitialized) {
+            webView.evaluateJavascript("window.srhWake && window.srhWake()", null)
+        }
     }
 
     override fun onDestroy() {
@@ -174,9 +207,36 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun setKeepAwake(on: Boolean) {
+            runOnUiThread {
+                if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+
+        @JavascriptInterface
+        fun screenOffTimeout(): Long = try {
+            AndroidSettings.System.getLong(contentResolver, AndroidSettings.System.SCREEN_OFF_TIMEOUT, 60000L)
+        } catch (e: Exception) {
+            60000L
+        }
+
+        @JavascriptInterface
+        fun setBrightness(value: Float) {
+            val v = if (value < 0f) -1f else value.coerceIn(0.01f, 1f)
+            Settings.saveBrightness(this@MainActivity, v)
+            runOnUiThread { applyBrightness() }
+        }
+
+        @JavascriptInterface
+        fun getBrightness(): Float = Settings.brightness(this@MainActivity)
+
+        @JavascriptInterface
         fun appVersion(): String = BuildConfigVersion.name(this@MainActivity)
     }
 }
+
+const val EXTRA_WAKE = "wake"
 
 private object BuildConfigVersion {
     fun name(ctx: android.content.Context): String =

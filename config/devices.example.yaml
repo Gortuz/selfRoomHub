@@ -17,3 +17,13 @@ bluetooth:
   - id: parlantes
     name: Parlantes
     address: AA:BB:CC:DD:EE:FF
+
+# Opcional: escenas (lista de pasos: power, toggle, bluetooth, media, wake, wait)
+scenes:
+  musica:
+    - power: { device: parlantes, on: true }
+    - wait: 4
+    - bluetooth: { id: parlantes, connect: true }
+    - media: { action: play_search, query: "Nombre de un artista", focus: artist }
+  apagar_todo:
+    - power: { device: parlantes, on: false }

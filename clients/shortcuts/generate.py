@@ -110,7 +110,14 @@ def workflow(actions: list[dict]) -> dict:
     }
 
 
-def build(url: str, token: str, device: str, bt_id: str | None, bt_addr: str | None) -> dict[str, dict]:
+def build(
+    url: str,
+    token: str,
+    device: str,
+    bt_id: str | None,
+    bt_addr: str | None,
+    scenes: dict[str, str] | None = None,
+) -> dict[str, dict]:
     dev = f"{url}/devices/{device}"
     shortcuts = {
         "Speakers on": [request(f"{dev}/power", token, True)],
@@ -138,6 +145,9 @@ def build(url: str, token: str, device: str, bt_id: str | None, bt_addr: str | N
             *if_mac([shell(f"{BLUEUTIL} --disconnect {addr}; sleep 1")], []),
             request(f"{bt}/connect", token),
         ]
+    # Un atajo por escena: una sola petición, la lógica vive en el backend
+    for scene, label in (scenes or {}).items():
+        shortcuts[label] = [request(f"{url}/scenes/{scene}", token)]
     return {name: workflow(actions) for name, actions in shortcuts.items()}
 
 
@@ -149,6 +159,13 @@ def main() -> None:
     ap.add_argument("--bt-address", help="dirección Bluetooth del parlante")
     ap.add_argument("--out", required=True, type=Path, help="carpeta de salida")
     ap.add_argument("--only", nargs="*", help="genera solo estos atajos")
+    ap.add_argument(
+        "--scene",
+        action="append",
+        default=[],
+        metavar="ESCENA=NOMBRE",
+        help="atajo que ejecuta una escena, p. ej. --scene charly=Peluche (repetible)",
+    )
     args = ap.parse_args()
 
     token = os.environ.get("SELFROOMHUB_TOKEN")
@@ -156,7 +173,9 @@ def main() -> None:
         sys.exit("Define SELFROOMHUB_TOKEN en el entorno")
 
     args.out.mkdir(parents=True, exist_ok=True)
-    for name, wf in build(args.url.rstrip("/"), token, args.device, args.bt_id, args.bt_address).items():
+    scenes = dict(item.split("=", 1) for item in args.scene)
+    built = build(args.url.rstrip("/"), token, args.device, args.bt_id, args.bt_address, scenes)
+    for name, wf in built.items():
         if args.only and name not in args.only:
             continue
         unsigned = args.out / f"{name}.unsigned.shortcut"
