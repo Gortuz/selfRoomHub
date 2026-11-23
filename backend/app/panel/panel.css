@@ -63,7 +63,7 @@ html, body {
 }
 
 /* Barra superior: hora, fecha y parlantes en una línea de cartel */
-.bar { display: flex; align-items: baseline; }
+.bar { display: flex; align-items: baseline; min-width: 0; }
 .clock {
   margin: 0;
   font-family: var(--poster);
@@ -82,13 +82,12 @@ html, body {
 .idle .date { margin-left: 0; }
 
 .speakers {
-  align-self: center;
   display: inline-flex; align-items: center;
-  margin-left: auto;
-  padding: 0 16px 0 14px;
-  min-height: 44px;
+  margin-left: 22px;
+  padding: 0 18px 0 16px;
+  height: 56px;
   border: 2px solid var(--rule);
-  border-radius: 999px;
+  border-radius: 0;
   background: transparent;
   color: var(--bone);
   font: inherit; font-weight: 700; font-size: 16px;
@@ -153,21 +152,23 @@ html, body {
 
 /* Consola: transporte y fader */
 .deck { display: flex; align-items: center; }
+.keys { display: flex; align-items: center; }
+.keys[hidden] + .speakers { margin-left: 0; }
 .key {
   display: inline-flex; align-items: center; justify-content: center;
   flex: none;
-  width: 52px; height: 52px;
-  margin-right: 10px;
+  width: 56px; height: 56px;
+  margin-right: 8px;
   padding: 0;
   border: 2px solid var(--rule);
-  border-radius: 50%;
+  border-radius: 0;
   background: transparent;
   color: var(--bone);
   cursor: pointer;
 }
 .key svg { width: 22px; height: 22px; fill: currentColor; }
 .key:active { background: var(--ground-raised); }
-.key-main { width: 64px; height: 64px; background: var(--ink-1); border-color: var(--ink-1); color: var(--ground); }
+.key-main { width: 56px; height: 56px; background: var(--ink-1); border-color: var(--ink-1); color: var(--ground); }
 .key-main svg { width: 26px; height: 26px; }
 .key-main:active { background: var(--bone); border-color: var(--bone); }
 .key-main .icon-pause { display: none; }
@@ -177,17 +178,17 @@ html, body {
 /* Canal de volumen: fader vertical de consola con pasos + y − */
 .channel {
   display: flex; flex-direction: column; align-items: center;
-  width: 64px;
+  width: 56px;
   margin-left: var(--pad);
   height: 100%;
 }
 .step {
   display: inline-flex; align-items: center; justify-content: center;
   flex: none;
-  width: 52px; height: 52px;
+  width: 56px; height: 56px;
   padding: 0;
   border: 2px solid var(--rule);
-  border-radius: 50%;
+  border-radius: 0;
   background: transparent;
   color: var(--bone);
   cursor: pointer;

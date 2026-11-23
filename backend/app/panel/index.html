@@ -19,9 +19,6 @@
       <header class="bar">
         <time id="clock" class="clock" title="Mantén presionado para abrir Ajustes">--:--</time>
         <p id="date" class="date"></p>
-        <button id="speakers" class="speakers" type="button" aria-haspopup="dialog" aria-pressed="false">
-          <span class="led" aria-hidden="true"></span>Parlantes
-        </button>
       </header>
 
       <div class="poster" id="track" aria-live="polite">
@@ -30,7 +27,8 @@
         <p id="artist" class="artist"></p>
       </div>
 
-      <div class="deck" id="transport" hidden>
+      <div class="deck">
+        <div class="keys" id="transport" hidden>
         <button class="key" id="prev" type="button" aria-label="Canción anterior">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2.5v14H6zM20 5v14L9.5 12z"/></svg>
         </button>
@@ -41,7 +39,10 @@
         <button class="key" id="next" type="button" aria-label="Canción siguiente">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5H18v14h-2.5zM4 5v14l10.5-7z"/></svg>
         </button>
-
+        </div>
+        <button id="speakers" class="speakers" type="button" aria-haspopup="dialog" aria-pressed="false">
+          <span class="led" aria-hidden="true"></span>Parlantes
+        </button>
       </div>
 
       <p id="notice" class="notice" role="status" hidden></p>

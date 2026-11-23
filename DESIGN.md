@@ -117,7 +117,7 @@ Se rechaza explícitamente la pantalla "Reproduciendo" de las apps de streaming:
 - Negro de imprenta con blanco hueso; color solo en tinta plana.
 - Tres tintas fluorescentes que se recalculan desde la portada.
 - Titular Bungee en mayúsculas, ajustado al espacio libre, pintado en bandas de corte duro.
-- Controles como hardware de consola: teclas redondas, fader con perilla, LED.
+- Controles como consola impresa: teclas cuadradas con filete, fader vertical con perilla, LED redondo.
 - Superficies impresas: esquinas rectas en hojas, campos y acciones.
 
 ## Colors
@@ -171,7 +171,7 @@ Negro de imprenta, blanco hueso y tres tintas fluorescentes que cambian con cada
 
 ## Layout
 
-Una sola pantalla horizontal, sin desplazamiento (`overflow: hidden`). Rejilla de tres columnas: portada cuadrada a toda la altura (alto de la ventana menos dos márgenes), escenario flexible y canal de volumen vertical de 64px a toda la altura. El escenario es una columna: barra superior (hora, fecha, botón Parlantes alineado a la derecha), afiche que toma todo el alto sobrante con base 0, y consola abajo (teclas de transporte). Bajo el titular, una línea de versión en hueso gastado ("Remastered 2009", "feat. …") separada del nombre. Los avisos van debajo de la consola.
+Una sola pantalla horizontal, sin desplazamiento (`overflow: hidden`). Rejilla de tres columnas: portada cuadrada a toda la altura (alto de la ventana menos dos márgenes), escenario flexible y canal de volumen vertical de 64px a toda la altura. El escenario es una columna: barra superior (hora y fecha), afiche que toma todo el alto sobrante con base 0, y consola abajo (teclas de transporte y botón Parlantes). Bajo el titular, una línea de versión en hueso gastado ("Remastered 2009", "feat. …") separada del nombre. Los avisos van debajo de la consola.
 
 El margen general es `pad`, que escala con la ventana entre 14 y 36px y respeta las zonas seguras laterales. Los espacios internos son pocos y cortos: 10px entre teclas y bajo el titular, 12px antes del fader, 14px entre hora y fecha.
 
@@ -191,7 +191,7 @@ Plano por defecto. La profundidad se marca por tono (negro de imprenta contra ne
 
 ## Shapes
 
-Dos familias de forma con un sentido fijo. Los controles que imitan hardware son redondos: teclas de transporte (círculo), botón Parlantes (cápsula de 999px) y LED (círculo de 12px). Lo impreso es recto: portada, hoja, acciones, campos y perilla del fader con esquinas de 0. Los bordes son filetes de 2px en controles y de 1px en separadores; la hoja lleva un filo superior de tinta de 6px.
+Una sola familia de forma: todo es plancha impresa de esquinas rectas. Teclas de transporte (56px), pasos de volumen (56px), botón Parlantes, acciones de la hoja, campo del token y perilla del fader son rectángulos con filete de 2px; la tecla de reproducir va rellena de tinta 1. La única forma redonda es el LED (12px), porque es una luz, no un control.
 
 **La Regla Consola o Imprenta.** Si se presiona como un aparato (tecla, interruptor, indicador), es redondo. Si se lee o se llena como papel (hoja, campo, acción de texto), es recto.
 
@@ -214,7 +214,8 @@ Fader de canal de mesa de mezcla, al borde derecho y a toda la altura.
 - Solo aparece cuando el servidor informa el volumen; igual que las teclas.
 
 ### Botón Parlantes con LED
-- **Forma:** cápsula de 44px de alto con filete de 2px, texto Atkinson 700 a 16px.
+- **Forma:** rectángulo de 56px de alto con filete de 2px y esquinas rectas, texto Atkinson 700 a 16px.
+- **Lugar:** en la consola, después de las teclas de transporte y separado de ellas; siempre visible aunque falten las teclas.
 - **LED:** círculo de 12px a la izquierda; LED apagado cuando no hay corriente, tinta 1 cuando está encendido. Parpadea en dos pasos (0.8s, `steps(2)`) mientras una orden está en curso.
 - **Presionado:** fondo negro plancha.
 
