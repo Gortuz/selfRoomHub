@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- El backend habla HTTP plano en la LAN / localhost (no hay certificado).
+     Android no permite listar rangos CIDR en este archivo, asi que se permite
+     cleartext en general; el trafico real es 127.0.0.1 o la red local. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

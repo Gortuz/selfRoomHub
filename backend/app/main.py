@@ -6,18 +6,23 @@ Arranque:
 
 import secrets
 import time
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import RedirectResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app import config
 from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
+from app.now_playing import ArtError, NowPlaying, NowPlayingUpdate
 
 BT_WAIT_POLLS = 8
 HEALTH_CACHE_S = 60
+PANEL_DIR = Path(__file__).parent / "panel"
 
 
 class PowerRequest(BaseModel):
@@ -98,6 +103,8 @@ def create_app(
             bt_health.update(at=now, ok=bt.available())
         return bool(bt_health["ok"])
 
+    now_playing = NowPlaying()
+
     app = FastAPI(title="selfRoomHub")
 
     @app.get("/health")
@@ -159,5 +166,34 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(e)) from e
         wait_connected(target, False)
         return bt_state(target, strict=True)
+
+    @app.get("/now-playing", dependencies=[Depends(auth)])
+    def read_now_playing() -> dict[str, object]:
+        return now_playing.to_json()
+
+    @app.put("/now-playing", dependencies=[Depends(auth)])
+    def put_now_playing(body: NowPlayingUpdate) -> dict[str, object]:
+        try:
+            now_playing.update(body)
+        except ArtError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        return now_playing.to_json()
+
+    # La URL de la portada lleva versión (?v=), por eso se puede cachear un día
+    @app.get("/now-playing/art")
+    def now_playing_art() -> Response:
+        if now_playing.art is None or now_playing.art_type is None:
+            raise HTTPException(status_code=404, detail="Sin portada")
+        return Response(
+            content=now_playing.art,
+            media_type=now_playing.art_type,
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    @app.get("/panel", include_in_schema=False)
+    def panel_redirect() -> RedirectResponse:
+        return RedirectResponse("/panel/")
+
+    app.mount("/panel", StaticFiles(directory=PANEL_DIR, html=True), name="panel")
 
     return app

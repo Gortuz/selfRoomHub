@@ -24,3 +24,4 @@ __pycache__/
 
 # Compilados de btctl
 tools/btctl/build/
+.impeccable/

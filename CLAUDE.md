@@ -73,7 +73,11 @@ NFC / Tasker        ──┘        │
 - `GET /bluetooth`: lista los dispositivos Bluetooth configurados y si el servidor está conectado a cada uno
 - `POST /bluetooth/{id}/connect`: conecta el servidor a ese dispositivo Bluetooth
 - `POST /bluetooth/{id}/disconnect`: desconecta el servidor de ese dispositivo Bluetooth
-- `GET /now-playing`, `POST /spotify/{accion}`
+- `GET /panel/`: panel web estático (sin auth; el token va en el fragmento de la URL)
+- `GET /now-playing`: qué suena en el servidor (JSON con `art_url`)
+- `PUT /now-playing`: lo publica la app kiosco (título, artista, portada en base64 ≤ 2 MB)
+- `GET /now-playing/art`: portada actual (sin auth; 404 si no hay)
+- `POST /spotify/{accion}`
 - `GET /weather`
 - `GET /dashboard` (agregado para la pantalla)
 
