@@ -6,13 +6,14 @@ Arranque:
 
 import asyncio
 import contextlib
+import html
 import secrets
 import time
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -33,6 +34,7 @@ from app.lyrics import LyricsClient, LyricsFetcher, LyricsUnavailable
 from app.media import CommandQueue, MediaCommand
 from app.now_playing import ArtError, NowPlaying, NowPlayingUpdate
 from app.scenes import SceneContext, Step, run_scene
+from app.spotify import SpotifyClient, SpotifyError
 
 BT_WAIT_POLLS = 8
 HEALTH_CACHE_S = 60
@@ -46,9 +48,22 @@ class PowerRequest(BaseModel):
     on: bool
 
 
+class SpotifyPlayRequest(BaseModel):
+    query: str | None = None
+    uri: str | None = None
+    type: Literal["artist", "album", "playlist", "track"] = "artist"
+    device: str | None = None
+    shuffle: bool | None = None
+
+
 def _state(device: Device) -> dict[str, object]:
     st = device.status()
     return {"id": device.id, "name": device.name, "online": st.online, "on": st.on}
+
+
+def _page(body: str) -> str:
+    head = '<meta charset="utf-8"><meta name="viewport" content="width=device-width">'
+    return f"<!doctype html>{head}<body>{body}</body>"
 
 
 class PanelFiles(StaticFiles):
@@ -70,6 +85,7 @@ def create_app(
     notifier: Notifier | None = None,
     battery_watch: bool | None = None,
     scenes: dict[str, list[Step]] | None = None,
+    spotify: SpotifyClient | None = None,
 ) -> FastAPI:
     # Sin inyección se arranca de verdad: se lee .env y la configuración
     from_config = devices is None or token is None
@@ -142,7 +158,10 @@ def create_app(
     now_playing = NowPlaying()
     media_queue = CommandQueue()
     lyrics = LyricsClient(lyrics_fetcher)
-    scene_ctx = SceneContext(registry, bt, bt_targets, media_queue)
+    if spotify is None:
+        spotify = SpotifyClient.from_env() if from_config else SpotifyClient(None)
+    sp = spotify
+    scene_ctx = SceneContext(registry, bt, bt_targets, media_queue, spotify=sp)
 
     battery_monitor = battery or BatteryMonitor()
     thresholds = thresholds_from_env()
@@ -275,6 +294,62 @@ def create_app(
             raise HTTPException(status_code=404, detail=f"Escena no encontrada: {name}")
         results = run_scene(steps, scene_ctx)
         return {"name": name, "ok": all(r["ok"] for r in results), "steps": results}
+
+    def spotify_http_error(e: SpotifyError) -> HTTPException:
+        code = e.status if e.status in (404, 409, 422) else 502
+        return HTTPException(status_code=code, detail=e.message)
+
+    # El navegador no manda el header: el token del backend viaja por query
+    @app.get("/spotify/login", include_in_schema=False)
+    def spotify_login(token: str = "") -> RedirectResponse:
+        if not secrets.compare_digest(token.encode(), expected.encode()):
+            raise HTTPException(status_code=401, detail="No autorizado")
+        try:
+            return RedirectResponse(sp.login_url())
+        except SpotifyError as e:
+            raise spotify_http_error(e) from e
+
+    # Sin auth: lo protege el state de un solo uso
+    @app.get("/spotify/callback", include_in_schema=False)
+    def spotify_callback(code: str = "", state: str = "", error: str = "") -> HTMLResponse:
+        try:
+            if error or not code:
+                raise SpotifyError(400, f"Spotify rechazó el vínculo: {error or 'sin código'}")
+            sp.handle_callback(code, state)
+        except SpotifyError as e:
+            page = f"<h1>No se pudo vincular Spotify</h1><p>{html.escape(e.message)}</p>"
+            return HTMLResponse(_page(page), status_code=e.status if e.status < 500 else 502)
+        return HTMLResponse(_page("<h1>Spotify vinculado. Ya puedes cerrar esta pestaña.</h1>"))
+
+    @app.get("/spotify/status", dependencies=[Depends(auth)])
+    def spotify_status() -> dict[str, object]:
+        result: dict[str, object] = {
+            "configured": sp.configured,
+            "linked": sp.linked,
+            "devices": None,
+        }
+        if result["linked"]:
+            try:
+                result["devices"] = [
+                    {
+                        "name": d.get("name"),
+                        "type": d.get("type"),
+                        "active": bool(d.get("is_active")),
+                    }
+                    for d in sp.devices()
+                ]
+            except SpotifyError as e:
+                result["error"] = e.message
+        return result
+
+    @app.post("/spotify/play", dependencies=[Depends(auth)])
+    def spotify_play(body: SpotifyPlayRequest) -> dict[str, object]:
+        if not body.query and not body.uri:
+            raise HTTPException(status_code=422, detail="Falta query o uri")
+        try:
+            return sp.play(body.query, body.uri, body.type, body.device, body.shuffle)
+        except SpotifyError as e:
+            raise spotify_http_error(e) from e
 
     @app.get("/now-playing", dependencies=[Depends(auth)])
     def read_now_playing() -> dict[str, object]:

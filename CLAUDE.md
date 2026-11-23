@@ -81,7 +81,8 @@ NFC / Tasker        ──┘        │
 - `GET /now-playing`: qué suena en el servidor (JSON con `art_url`)
 - `PUT /now-playing`: lo publica la app kiosco (título, artista, portada en base64 ≤ 2 MB)
 - `GET /now-playing/art`: portada actual (sin auth; 404 si no hay)
-- `POST /spotify/{accion}`
+- `GET /spotify/login`, `GET /spotify/callback` (vinculación PKCE)
+- `GET /spotify/status`, `POST /spotify/play`
 - `GET /weather`
 - `GET /lyrics` (letra de lo que suena, desde LRCLIB)
 - `GET /dashboard` (agregado para la pantalla)

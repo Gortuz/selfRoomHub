@@ -16,9 +16,12 @@ from pydantic import ValidationError
 from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
 from app.media import CommandQueue, MediaCommand
+from app.spotify import DeviceNotFound, SpotifyClient, SpotifyError
 
 NAME_RE = re.compile(r"^[a-z0-9_-]+$")
-STEP_KINDS = ("power", "toggle", "bluetooth", "media", "wake", "wait")
+STEP_KINDS = ("power", "toggle", "bluetooth", "media", "spotify", "wake", "wait")
+SPOTIFY_TYPES = ("artist", "album", "playlist", "track")
+SPOTIFY_WAKE_WAIT_S = 3
 MAX_WAIT_S = 30
 BT_WAIT_POLLS = 8
 
@@ -40,6 +43,7 @@ class SceneContext:
     bt_targets: dict[str, BluetoothTarget]
     queue: CommandQueue
     sleep: Callable[[float], None] = time.sleep
+    spotify: SpotifyClient | None = None
 
 
 def _ids(valid: Collection[str]) -> str:
@@ -88,10 +92,29 @@ def _parse_step(raw: Any, devices: Collection[str], bt_ids: Collection[str]) -> 
         if not isinstance(body.get("connect"), bool):
             raise SceneError("bluetooth exige connect true/false")
         return Step("bluetooth", {"id": target, "connect": body["connect"]})
+    if kind == "spotify":
+        return _parse_spotify(body)
     try:
         return Step("media", {"command": MediaCommand(**body)})
     except (ValidationError, TypeError) as e:
         raise SceneError(f"media inválido: {e}") from e
+
+
+def _parse_spotify(body: dict[str, Any]) -> Step:
+    play, uri = body.get("play"), body.get("uri")
+    if not (isinstance(play, str) and play.strip()) and not (isinstance(uri, str) and uri):
+        raise SceneError("spotify exige play (texto) o uri")
+    kind = body.get("type", "artist")
+    if kind not in SPOTIFY_TYPES:
+        raise SceneError(f"spotify type inválido {kind!r} (válidos: {', '.join(SPOTIFY_TYPES)})")
+    device, shuffle = body.get("device"), body.get("shuffle")
+    if device is not None and not isinstance(device, str):
+        raise SceneError("spotify device debe ser texto")
+    if shuffle is not None and not isinstance(shuffle, bool):
+        raise SceneError("spotify shuffle debe ser true/false")
+    args = {"query": play or None, "uri": uri or None, "type": kind}
+    args.update(device=device, shuffle=shuffle)
+    return Step("spotify", args)
 
 
 def parse_scenes(
@@ -129,6 +152,22 @@ def _wait_bt(ctx: SceneContext, target: BluetoothTarget, expected: bool) -> bool
     return False
 
 
+def _spotify_step(args: dict[str, Any], ctx: SceneContext) -> str:
+    if ctx.spotify is None:
+        raise SceneError("Spotify no configurado")
+    try:
+        try:
+            result = ctx.spotify.play(**args)
+        except DeviceNotFound:
+            # Spotify cerrado o dormido en el teléfono: se despierta y se reintenta una vez
+            ctx.queue.add(MediaCommand(action="wake"))
+            ctx.sleep(SPOTIFY_WAKE_WAIT_S)
+            result = ctx.spotify.play(**args)
+    except SpotifyError as e:
+        raise SceneError(e.message) from e
+    return f"reproduciendo {result['uri']} en {result['device']}"
+
+
 def _do_step(step: Step, ctx: SceneContext) -> str:
     """Ejecuta un paso y devuelve el detalle; lanza SceneError si falla."""
     a = step.args
@@ -162,6 +201,8 @@ def _do_step(step: Step, ctx: SceneContext) -> str:
     if step.kind == "media":
         command: MediaCommand = a["command"]
         return f"orden {command.action} encolada (id {ctx.queue.add(command)})"
+    if step.kind == "spotify":
+        return _spotify_step(a, ctx)
     if step.kind == "wake":
         return f"orden wake encolada (id {ctx.queue.add(MediaCommand(action='wake'))})"
     ctx.sleep(a["seconds"])
