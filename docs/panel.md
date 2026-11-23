@@ -63,3 +63,31 @@ Cuerpo de `POST /media/command`:
 `value` solo (y obligatorio) para `volume`, en porcentaje. Respuesta de `GET /media/commands`: `[{"id": 7, "action": "next", "value": null, "created_at": "..."}]`. Las órdenes de más de 10 s se descartan (no se ejecuta una orden vieja tras una reconexión). Los ids son crecientes; `after=0` en el primer arranque devuelve solo órdenes vigentes.
 
 `GET`/`PUT /now-playing` agregan `"volume": 0-100 | null` (volumen de medios del servidor, en porcentaje). La app kiosco lo informa al cambiar el volumen, aunque no haya música.
+
+## Posición de reproducción y letras
+
+`PUT /now-playing` acepta además (todos opcionales, la app kiosco los informa):
+
+```json
+{"position_ms": 61234, "duration_ms": 215000, "position_at": 1795400000000, "speed": 1.0}
+```
+
+`position_at` es la hora (epoch en ms, reloj del servidor/teléfono) en que se midió `position_ms`. `GET /now-playing` devuelve `position_ms` ya **extrapolado al momento de la respuesta** (si `playing`, suma `(ahora - position_at) * speed`, sin pasar de `duration_ms`) y `duration_ms`; el panel sigue extrapolando con su propio reloj desde que recibe la respuesta. Sin datos: `null`.
+
+| Método | Ruta | Auth | Uso |
+|---|---|---|---|
+| GET | `/lyrics` | sí | Letra de lo que suena ahora, desde [LRCLIB](https://lrclib.net) |
+
+Respuesta:
+
+```json
+{
+  "title": "Octopus's Garden", "artist": "The Beatles",
+  "synced": [{"t": 12340, "line": "I'd like to be under the sea"}],
+  "plain": "I'd like to be under the sea\n...",
+  "instrumental": false,
+  "source": "lrclib"
+}
+```
+
+`synced` es `null` si LRCLIB solo tiene letra sin tiempos. `404 {"detail": "Sin letra para esta canción"}` si no hay nada o no suena nada; `503` si LRCLIB no responde. El backend cachea por canción.
