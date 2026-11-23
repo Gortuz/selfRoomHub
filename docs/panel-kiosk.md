@@ -54,7 +54,7 @@ El servicio de medios consulta `GET /media/commands` (long-poll) y ejecuta las �
 - `toggle`: pausa si suena, si no reanuda. `play`, `pause`, `next`, `previous`: actúan sobre la misma sesión que se publica en now-playing. Sin sesión activa, `play`/`toggle` envían la tecla multimedia PLAY para que la última app de música reanude.
 - `volume`: fija el volumen de **medios del teléfono** (STREAM_MUSIC) en porcentaje, sin mostrar la barra del sistema.
 
-El volumen actual se informa en `volume` en cada `PUT /now-playing` y, con un retraso de ~300 ms, al cambiar (también con botones físicos y sin música). Requiere el mismo acceso a notificaciones que now-playing. Ante errores de red reintenta cada 3 s; con 401 (token mal configurado), cada 30 s.
+El volumen actual se informa en `volume` en cada `PUT /now-playing` y, con un retraso de ~300 ms, al cambiar (también con botones físicos y sin música). Cada `PUT /now-playing` incluye además, si se conocen, `position_ms`, `position_at` (hora de pared de la medición), `speed` y `duration_ms` (ver [panel.md](panel.md#posición-de-reproducción-y-letras)); un salto dentro de la canción (seek) llega como cambio de estado y se publica con el mismo debounce de 500 ms. Requiere el mismo acceso a notificaciones que now-playing. Ante errores de red reintenta cada 3 s; con 401 (token mal configurado), cada 30 s.
 
 ## Arrancar tras reiniciar
 

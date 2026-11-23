@@ -81,6 +81,7 @@ NFC / Tasker        ──┘        │
 - `GET /now-playing/art`: portada actual (sin auth; 404 si no hay)
 - `POST /spotify/{accion}`
 - `GET /weather`
+- `GET /lyrics` (letra de lo que suena, desde LRCLIB)
 - `GET /dashboard` (agregado para la pantalla)
 
 Autenticación: token estático en `Authorization: Bearer ...`. En Android se guarda en `EncryptedSharedPreferences`.

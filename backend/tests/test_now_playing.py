@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.now_playing import NowPlaying, NowPlayingUpdate
 
 TOKEN = "test-token"
 HEADERS = {"Authorization": f"Bearer {TOKEN}"}
@@ -38,6 +39,8 @@ def test_initial_state(client: TestClient) -> None:
         "app": None,
         "art_url": None,
         "volume": None,
+        "position_ms": None,
+        "duration_ms": None,
         "updated_at": None,
     }
 
@@ -159,3 +162,101 @@ def test_volume_saved_kept_and_not_cleared(client: TestClient) -> None:
 def test_volume_out_of_range(client: TestClient) -> None:
     r = client.put("/now-playing", headers=HEADERS, json=song(volume=101))
     assert r.status_code == 422
+
+
+# --- posición de reproducción ---
+
+
+class Clock:
+    def __init__(self, now: int) -> None:
+        self.now = now
+
+    def __call__(self) -> int:
+        return self.now
+
+
+def make_np() -> tuple[NowPlaying, Clock]:
+    clock = Clock(1_000_000)
+    return NowPlaying(clock=clock), clock
+
+
+def put(np: NowPlaying, **fields: object) -> None:
+    np.update(NowPlayingUpdate(**{"playing": True, "title": "T", "artist": "A", **fields}))
+
+
+def test_position_null_by_default() -> None:
+    np, _ = make_np()
+    put(np)
+    assert np.to_json()["position_ms"] is None
+    assert np.to_json()["duration_ms"] is None
+
+
+def test_position_extrapolated_while_playing() -> None:
+    np, clock = make_np()
+    put(np, position_ms=10_000, duration_ms=200_000, position_at=1_000_000)
+    clock.now += 5_000
+    j = np.to_json()
+    assert j["position_ms"] == 15_000
+    assert j["duration_ms"] == 200_000
+    assert "position_at" not in j and "speed" not in j
+
+
+def test_position_uses_speed() -> None:
+    np, clock = make_np()
+    put(np, position_ms=0, position_at=1_000_000, speed=2.0)
+    clock.now += 3_000
+    assert np.to_json()["position_ms"] == 6_000
+
+
+def test_position_not_extrapolated_when_paused() -> None:
+    np, clock = make_np()
+    np.update(NowPlayingUpdate(playing=False, position_ms=7_000, position_at=1_000_000))
+    clock.now += 5_000
+    assert np.to_json()["position_ms"] == 7_000
+
+
+def test_position_without_position_at_is_not_extrapolated() -> None:
+    np, clock = make_np()
+    put(np, position_ms=4_000)
+    clock.now += 9_000
+    assert np.to_json()["position_ms"] == 4_000
+
+
+def test_position_capped_to_duration() -> None:
+    np, clock = make_np()
+    put(np, position_ms=9_000, duration_ms=10_000, position_at=1_000_000)
+    clock.now += 60_000
+    assert np.to_json()["position_ms"] == 10_000
+
+
+def test_position_never_negative() -> None:
+    np, _ = make_np()
+    put(np, position_ms=1_000, position_at=1_005_000)  # medida "en el futuro"
+    assert np.to_json()["position_ms"] == 0
+
+
+def test_same_song_keeps_missing_position_fields() -> None:
+    np, _ = make_np()
+    put(np, position_ms=1_000, duration_ms=200_000, position_at=1_000_000, speed=1.5)
+    put(np, position_ms=2_000, position_at=1_001_000)
+    assert np.duration_ms == 200_000
+    assert np.speed == 1.5
+    assert np.position_ms == 2_000
+
+
+def test_new_song_resets_missing_position_fields() -> None:
+    np, _ = make_np()
+    put(np, position_ms=1_000, duration_ms=200_000, position_at=1_000_000, speed=1.5)
+    put(np, title="Otra", position_ms=500, position_at=1_000_000)
+    assert np.duration_ms is None
+    assert np.speed == 1.0
+    assert np.position_ms == 500
+    put(np, title="Tercera")
+    j = np.to_json()
+    assert j["position_ms"] is None and j["duration_ms"] is None
+
+
+def test_position_through_api(client: TestClient) -> None:
+    r = client.put("/now-playing", headers=HEADERS, json=song(position_ms=5, duration_ms=10))
+    assert r.json()["duration_ms"] == 10
+    assert client.put("/now-playing", headers=HEADERS, json=song(position_ms=-1)).status_code == 422

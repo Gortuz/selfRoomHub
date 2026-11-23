@@ -295,8 +295,106 @@ html, body {
 .setup .action { margin: 0; }
 .setup-error { margin: 0 0 12px; color: var(--alert); font-size: 15px; }
 
+/* Vistas: Letra ← Música → Reloj, se pasan deslizando */
+.views {
+  display: flex;
+  width: 300vw;
+  height: 100%;
+  transform: translateX(-100vw);
+  transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+  touch-action: pan-y;
+}
+.views.dragging { transition: none; }
+.view { flex: none; width: 100vw; height: 100%; overflow: hidden; }
+.views[data-view="0"] { transform: translateX(0); }
+.views[data-view="2"] { transform: translateX(-200vw); }
+
+.dots {
+  position: fixed; left: 50%; bottom: 6px;
+  display: flex;
+  transform: translateX(-50%);
+  z-index: 5;
+}
+.dot {
+  width: 30px; height: 24px;
+  margin: 0 2px; padding: 0;
+  border: 0; background: transparent;
+  cursor: pointer;
+}
+.dot::before {
+  content: ""; display: block;
+  width: 8px; height: 8px; margin: 0 auto;
+  background: var(--rule);
+}
+.views[data-view="0"] ~ .dots .dot[data-go="0"]::before,
+.views[data-view="1"] ~ .dots .dot[data-go="1"]::before,
+.views[data-view="2"] ~ .dots .dot[data-go="2"]::before { background: var(--ink-1); width: 20px; }
+
+/* Letra: la línea que suena va en tinta de afiche; el resto en hueso */
+.lyrics {
+  display: grid;
+  grid-template-columns: minmax(180px, 26vw) minmax(0, 1fr);
+  padding: var(--pad);
+  padding-left: max(var(--pad), env(safe-area-inset-left));
+  padding-right: max(var(--pad), env(safe-area-inset-right));
+}
+.lyrics-head { padding-right: var(--pad); }
+.lyrics-cover { margin: 0 0 14px; width: 100%; aspect-ratio: 1 / 1; background: var(--ground-raised); overflow: hidden; }
+.lyrics-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lyrics-title { margin: 0; font-family: var(--poster); font-size: 20px; line-height: 1.05; text-transform: uppercase; color: var(--ink-1); }
+.lyrics-artist { margin: 6px 0 0; font-weight: 700; font-size: 16px; color: var(--bone); }
+.lyrics-scroll {
+  position: relative;
+  min-height: 0; height: 100%;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+}
+.lyrics-scroll.plain { overflow-y: auto; -webkit-mask-image: none; mask-image: none; }
+.lyrics-lines {
+  list-style: none; margin: 0; padding: 40vh 0;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.plain .lyrics-lines { padding: 0 0 24px; transform: none !important; }
+.lyrics-lines li {
+  margin: 0 0 12px;
+  max-width: 34ch;
+  font-size: clamp(17px, 5vh, 24px); line-height: 1.3;
+  color: var(--bone-soft);
+}
+.lyrics-lines li.past { color: #6e6878; }
+.lyrics-lines li.now {
+  font-family: var(--poster); font-size: clamp(22px, 7vh, 34px); line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--ink-1);
+}
+.plain .lyrics-lines li { color: var(--bone); }
+.lyrics-state { margin: 0; position: absolute; top: 45%; color: var(--bone-soft); font-size: 18px; }
+
+/* Reloj: afiche generativo de cerros y sol en tinta plana según la hora */
+.sky { position: relative; background: var(--ground); }
+.sky-art { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.sky-time {
+  position: absolute;
+  left: max(var(--pad), env(safe-area-inset-left)); top: var(--pad);
+}
+.sky-clock {
+  display: block;
+  font-family: var(--poster);
+  font-size: clamp(72px, 34vh, 200px);
+  line-height: 0.9;
+  color: var(--sky-1, var(--ink-1));
+  background: linear-gradient(180deg, var(--sky-1, #ffe600) 0 34%, var(--sky-2, #ff3ea5) 34% 67%, var(--sky-3, #39ff7a) 67%);
+  background-size: 100% 0.9em;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-variant-numeric: tabular-nums;
+}
+.sky-date { margin: 10px 0 0 4px; font-weight: 700; font-size: clamp(16px, 5vh, 24px); color: var(--bone); }
+.sky-date::first-letter { text-transform: uppercase; }
+
 /* De noche el cuarto está oscuro: las tintas bajan y nada ilumina */
-body.night .panel, body.night .sheet, body.night .setup-form { opacity: 0.34; }
+body.night .view, body.night .dots, body.night .sheet, body.night .setup-form { opacity: 0.34; }
 body.night .key-main { background: transparent; color: var(--ink-1); }
 
 /* Vertical (navegadores de otros equipos): portada arriba */
@@ -311,4 +409,5 @@ body.night .key-main { background: transparent; color: var(--ink-1); }
 
 @media (prefers-reduced-motion: reduce) {
   .busy .led, .sheet { animation: none; }
+  .views, .lyrics-lines { transition: none; }
 }

@@ -16,6 +16,7 @@ import android.media.session.PlaybackState
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.service.notification.NotificationListenerService
 import android.util.Base64
 import android.util.Log
@@ -171,6 +172,7 @@ class MediaListenerService : NotificationListenerService() {
             json.put("artist", md?.text(MediaMetadata.METADATA_KEY_ARTIST, MediaMetadata.METADATA_KEY_ALBUM_ARTIST))
             json.put("album", md?.text(MediaMetadata.METADATA_KEY_ALBUM))
             json.put("app", c.packageName)
+            putPosition(json, c, md)
         }
         val withArt = c != null
         io.execute {
@@ -182,6 +184,22 @@ class MediaListenerService : NotificationListenerService() {
                 if (hash != null && lastArtHash == hash) lastArtHash = null
             }
         }
+    }
+
+    /** Posicion de reproduccion; omite lo que no se conoce. */
+    private fun putPosition(json: JSONObject, c: MediaController, md: MediaMetadata?) {
+        val st = c.playbackState
+        if (st != null && st.position >= 0) {
+            json.put("position_ms", st.position)
+            json.put(
+                "position_at",
+                System.currentTimeMillis() - (SystemClock.elapsedRealtime() - st.lastPositionUpdateTime),
+            )
+            val speed = if (st.playbackSpeed == 0f && st.state == PlaybackState.STATE_PLAYING) 1f else st.playbackSpeed
+            json.put("speed", speed.toDouble())
+        }
+        val dur = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+        if (dur > 0) json.put("duration_ms", dur)
     }
 
     private fun volumePercent(): Int {

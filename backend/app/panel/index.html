@@ -12,7 +12,22 @@
   <link rel="stylesheet" href="panel.css">
 </head>
 <body class="idle">
-  <main class="panel">
+  <div class="views" id="views" data-view="1">
+  <section class="view lyrics" id="view-lyrics" aria-label="Letra">
+    <header class="lyrics-head">
+      <figure class="lyrics-cover" id="lyrics-cover" aria-hidden="true"></figure>
+      <div class="lyrics-meta">
+        <p id="lyrics-title" class="lyrics-title"></p>
+        <p id="lyrics-artist" class="lyrics-artist"></p>
+      </div>
+    </header>
+    <div class="lyrics-scroll" id="lyrics-scroll">
+      <ol class="lyrics-lines" id="lyrics-lines"></ol>
+      <p class="lyrics-state" id="lyrics-state">No suena nada.</p>
+    </div>
+  </section>
+
+  <main class="panel view" id="view-music" aria-label="Música">
     <figure class="cover" id="cover" aria-hidden="true"></figure>
 
     <section class="stage">
@@ -63,6 +78,21 @@
       <output id="volume-value" class="channel-value">–</output>
     </aside>
   </main>
+
+  <section class="view sky" id="view-clock" aria-label="Reloj">
+    <svg class="sky-art" id="sky-art" viewBox="0 0 1600 740" preserveAspectRatio="xMidYMax slice" aria-hidden="true"></svg>
+    <div class="sky-time">
+      <time id="sky-clock" class="sky-clock">--:--</time>
+      <p id="sky-date" class="sky-date"></p>
+    </div>
+  </section>
+  </div>
+
+  <nav class="dots" aria-label="Vistas">
+    <button type="button" class="dot" data-go="0" aria-label="Letra"></button>
+    <button type="button" class="dot" data-go="1" aria-label="Música"></button>
+    <button type="button" class="dot" data-go="2" aria-label="Reloj"></button>
+  </nav>
 
   <div class="sheet-backdrop" id="sheet" hidden>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">

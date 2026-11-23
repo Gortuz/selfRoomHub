@@ -3,7 +3,9 @@
 import base64
 import binascii
 import hashlib
-from dataclasses import dataclass
+import time
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -23,6 +25,14 @@ class NowPlayingUpdate(BaseModel):
     app: str | None = None
     art_base64: str | None = None
     volume: int | None = Field(default=None, ge=0, le=100)
+    position_ms: int | None = Field(default=None, ge=0)
+    duration_ms: int | None = Field(default=None, ge=0)
+    position_at: int | None = None  # epoch en ms de la medición
+    speed: float | None = None  # 1.0 si no viene
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
 
 
 def decode_art(data: str) -> tuple[bytes, str]:
@@ -53,6 +63,11 @@ class NowPlaying:
     art_type: str | None = None
     volume: int | None = None
     updated_at: str | None = None
+    position_ms: int | None = None
+    duration_ms: int | None = None
+    position_at: int | None = None
+    speed: float = 1.0
+    clock: Callable[[], int] = field(default=_now_ms, repr=False)  # epoch en ms
 
     def update(self, body: NowPlayingUpdate) -> None:
         # Valida primero para no dejar el estado a medias si la imagen falla
@@ -61,6 +76,19 @@ class NowPlaying:
             self.art, self.art_type = new_art
         elif not body.playing or (body.title, body.artist) != (self.title, self.artist):
             self.art = self.art_type = None
+        # Canción distinta (o pausa): la posición anterior ya no vale
+        reset = not body.playing or (body.title, body.artist) != (self.title, self.artist)
+        if reset:
+            self.position_ms = self.duration_ms = self.position_at = None
+            self.speed = 1.0
+        if body.position_ms is not None:
+            self.position_ms = body.position_ms
+        if body.duration_ms is not None:
+            self.duration_ms = body.duration_ms
+        if body.position_at is not None:
+            self.position_at = body.position_at
+        if body.speed is not None:
+            self.speed = body.speed
         if body.playing:
             self.title, self.artist = body.title, body.artist
             self.album, self.app = body.album, body.app
@@ -71,6 +99,18 @@ class NowPlaying:
             self.volume = body.volume
         self.playing = body.playing
         self.updated_at = datetime.now().astimezone().isoformat(timespec="seconds")
+
+    def current_position_ms(self) -> int | None:
+        """Posición extrapolada a este momento, acotada a la duración."""
+        if self.position_ms is None:
+            return None
+        pos = float(self.position_ms)
+        if self.playing and self.position_at is not None:
+            pos += (self.clock() - self.position_at) * self.speed
+        pos = max(pos, 0.0)
+        if self.duration_ms is not None:
+            pos = min(pos, float(self.duration_ms))
+        return int(pos)
 
     def to_json(self) -> dict[str, object]:
         art_url = None
@@ -84,5 +124,7 @@ class NowPlaying:
             "app": self.app,
             "art_url": art_url,
             "volume": self.volume,
+            "position_ms": self.current_position_ms(),
+            "duration_ms": self.duration_ms,
             "updated_at": self.updated_at,
         }

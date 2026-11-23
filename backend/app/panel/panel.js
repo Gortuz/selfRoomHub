@@ -81,6 +81,9 @@
     $("date").textContent = dateFmt ? dateFmt.format(now) : now.toDateString();
     var h = now.getHours();
     body.classList.toggle("night", h >= NIGHT_FROM || h < NIGHT_TO);
+    $("sky-clock").textContent = hhmm;
+    $("sky-date").textContent = $("date").textContent;
+    if (typeof drawSky === "function") drawSky(now);
   }
 
   // --- Estado ---
@@ -200,6 +203,14 @@
       fitTitle();
     }
     showArt(hasTrack ? np.art_url : null);
+
+    if (np && typeof np.position_ms === "number") {
+      playback = { pos: np.position_ms, at: Date.now(), playing: !!np.playing, duration: np.duration_ms };
+    } else {
+      playback = { pos: null, at: 0, playing: false, duration: null };
+    }
+    loadLyrics(hasTrack ? np : null);
+    autoView(hasTrack && !!np.playing);
 
     var pp = $("playpause");
     pp.classList.toggle("playing", state.playing);
@@ -419,6 +430,224 @@
       .then(function (h) { state.btAvailable = h.bluetooth !== "unavailable"; state.offline = false; })
       .catch(function () { state.offline = true; })
       .then(render);
+  }
+
+
+  // --- Vistas: Letra (0) ← Música (1) → Reloj (2) ---
+  var views = $("views");
+  var view = 1;
+  function setView(i) {
+    view = Math.max(0, Math.min(2, i));
+    views.setAttribute("data-view", view);
+    views.style.transform = "";
+    if (view === 0) syncLyrics(true);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".dot"), function (d) {
+    d.addEventListener("click", function () { setView(parseInt(d.getAttribute("data-go"), 10)); });
+  });
+  document.addEventListener("keydown", function (e) {
+    if (!$("sheet").hidden) return;
+    if (e.key === "ArrowLeft") setView(view - 1);
+    if (e.key === "ArrowRight") setView(view + 1);
+  });
+
+  // Deslizar con el dedo: solo si el gesto es horizontal y no empieza en el fader
+  var swipe = null;
+  views.addEventListener("pointerdown", function (e) {
+    if (e.target.closest && e.target.closest(".rail")) return;
+    swipe = { x: e.clientX, y: e.clientY, dx: 0, active: false };
+  });
+  views.addEventListener("pointermove", function (e) {
+    if (!swipe) return;
+    var dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+    if (!swipe.active) {
+      if (Math.abs(dx) < 12 || Math.abs(dx) < Math.abs(dy)) return;
+      swipe.active = true;
+      views.classList.add("dragging");
+    }
+    swipe.dx = dx;
+    views.style.transform = "translateX(calc(" + (-100 * view) + "vw + " + dx + "px))";
+  });
+  function endSwipe() {
+    if (!swipe) return;
+    var s2 = swipe;
+    swipe = null;
+    views.classList.remove("dragging");
+    if (!s2.active) return;
+    if (s2.dx < -60) setView(view + 1);
+    else if (s2.dx > 60) setView(view - 1);
+    else setView(view);
+  }
+  views.addEventListener("pointerup", endSwipe);
+  views.addEventListener("pointercancel", endSwipe);
+  // Un toque que terminó en deslizamiento no debe accionar el botón bajo el dedo
+  views.addEventListener("click", function (e) {
+    if (views.getAttribute("data-swiped") === "1") { e.stopPropagation(); e.preventDefault(); views.removeAttribute("data-swiped"); }
+  }, true);
+  views.addEventListener("pointerup", function () { if (views.classList.contains("dragging")) views.setAttribute("data-swiped", "1"); }, true);
+
+  // Con música suena la vista de música; en silencio, el reloj. Elegir a mano vale hasta el próximo cambio.
+  var lastWantsMusic = null;
+  function autoView(wantsMusic) {
+    if (wantsMusic === lastWantsMusic) return;
+    lastWantsMusic = wantsMusic;
+    setView(wantsMusic ? 1 : 2);
+  }
+
+  // --- Letra sincronizada (LRCLIB vía backend) ---
+  var lyrics = { key: null, synced: null, plain: null };
+  var playback = { pos: null, at: 0, playing: false, duration: null };
+
+  function currentPos() {
+    if (playback.pos === null) return null;
+    return playback.pos + (playback.playing ? Date.now() - playback.at : 0);
+  }
+
+  function lyricsState(text) {
+    $("lyrics-state").textContent = text || "";
+    $("lyrics-state").hidden = !text;
+  }
+
+  function loadLyrics(np) {
+    var key = np && np.title ? np.title + "|" + (np.artist || "") : null;
+    if (key === lyrics.key) return;
+    lyrics = { key: key, synced: null, plain: null };
+    $("lyrics-lines").innerHTML = "";
+    $("lyrics-scroll").classList.remove("plain");
+    $("lyrics-title").textContent = np && np.title ? splitTitle(np.title)[0] : "";
+    $("lyrics-artist").textContent = np && np.artist ? np.artist : "";
+    $("lyrics-cover").innerHTML = "";
+    if (np && np.art_url) {
+      var img = new Image();
+      img.alt = "";
+      img.src = np.art_url;
+      $("lyrics-cover").appendChild(img);
+    }
+    if (!key) { lyricsState("No suena nada."); return; }
+    lyricsState("Buscando la letra…");
+    api("GET", "/lyrics")
+      .then(function (l) {
+        if (lyrics.key !== key) return;
+        if (l.instrumental) { lyricsState("Instrumental."); return; }
+        lyrics.synced = l.synced && l.synced.length ? l.synced : null;
+        lyrics.plain = l.plain || null;
+        var lines = lyrics.synced ? lyrics.synced.map(function (x) { return x.line; }) : (lyrics.plain || "").split("\n");
+        var ol = $("lyrics-lines");
+        lines.forEach(function (line) {
+          var li = document.createElement("li");
+          li.textContent = line || "♪";
+          ol.appendChild(li);
+        });
+        $("lyrics-scroll").classList.toggle("plain", !lyrics.synced);
+        lyricsState("");
+        syncLyrics(true);
+      })
+      .catch(function (e) {
+        if (lyrics.key !== key) return;
+        lyricsState(e.status === 404 ? "Esta canción no tiene letra en LRCLIB." : "No se pudo buscar la letra. Reintentando con la próxima canción.");
+      });
+  }
+
+  var lastLine = -1;
+  function syncLyrics(force) {
+    if (view !== 0 || !lyrics.synced) return;
+    var pos = currentPos();
+    if (pos === null) return;
+    var idx = -1;
+    for (var i = 0; i < lyrics.synced.length; i++) { if (lyrics.synced[i].t <= pos + 250) idx = i; else break; }
+    if (idx === lastLine && !force) return;
+    lastLine = idx;
+    var items = $("lyrics-lines").children;
+    for (var j = 0; j < items.length; j++) {
+      items[j].className = j === idx ? "now" : j < idx ? "past" : "";
+    }
+    // La línea actual queda a un tercio de la altura
+    var target = items[Math.max(0, idx)];
+    if (target) {
+      var scroll = $("lyrics-scroll");
+      var offset = target.offsetTop - scroll.clientHeight * 0.36;
+      $("lyrics-lines").style.transform = "translateY(" + (-offset) + "px)";
+    }
+  }
+  setInterval(function () { syncLyrics(false); }, 250);
+
+  // --- Reloj ilustrado: afiche generativo de cerros y sol ---
+  var SKIES = {
+    alba:      { inks: ["#ff7a1a", "#ff3ea5", "#ffe600"], sun: "#ffe600", ring: "#ff3ea5", hills: [["#ff3ea5", "#7a2cff"], ["#ff7a1a", "#ff3ea5"], ["#ffe600", "#ff7a1a"]] },
+    dia:       { inks: ["#ffe600", "#39ff7a", "#2ee6ff"], sun: "#ffe600", ring: "#ff7a1a", hills: [["#2ee6ff", "#1f8fff"], ["#39ff7a", "#2ee6ff"], ["#ffe600", "#39ff7a"]] },
+    atardecer: { inks: ["#ffb000", "#ff3ea5", "#9b4dff"], sun: "#ff7a1a", ring: "#ffe600", hills: [["#9b4dff", "#5a1fa8"], ["#ff3ea5", "#9b4dff"], ["#ff7a1a", "#ff3ea5"]] },
+    noche:     { inks: ["#8fa8ff", "#9b4dff", "#ff3ea5"], sun: "#f2ede3", ring: "#8fa8ff", hills: [["#2b2a6b", "#3b2f8f"], ["#3b2f8f", "#5a1fa8"], ["#5a1fa8", "#7a2cff"]] }
+  };
+  function period(h) { return h >= 5 && h < 8 ? "alba" : h >= 8 && h < 17 ? "dia" : h >= 17 && h < 19 ? "atardecer" : "noche"; }
+
+  // Azar repetible: los cerros cambian cada día, no en cada dibujo
+  function rng(seed) {
+    return function () {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  var lastSky = null;
+  function drawSky(now) {
+    var h = now.getHours(), name = period(h);
+    var stamp = now.toDateString() + name + Math.floor((h * 60 + now.getMinutes()) / 10);
+    if (stamp === lastSky) return;
+    lastSky = stamp;
+    var sky = SKIES[name];
+    var root = document.documentElement.style;
+    root.setProperty("--sky-1", sky.inks[0]);
+    root.setProperty("--sky-2", sky.inks[1]);
+    root.setProperty("--sky-3", sky.inks[2]);
+
+    var W = 1600, H = 740, svg = [];
+    var day = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 86400000;
+    var rand = rng(Math.floor(day));
+
+    // Bandas de cada cerro (patrón de tinta plana, como las letras chicha)
+    svg.push("<defs>");
+    sky.hills.forEach(function (c, i) {
+      var band = 10 + i * 6;
+      svg.push('<pattern id="band' + i + '" patternUnits="userSpaceOnUse" width="' + W + '" height="' + band * 2 + '">' +
+        '<rect width="' + W + '" height="' + band + '" fill="' + c[0] + '"/>' +
+        '<rect y="' + band + '" width="' + W + '" height="' + band + '" fill="' + c[1] + '"/></pattern>');
+    });
+    svg.push("</defs>");
+
+    if (name === "noche") {
+      for (var k = 0; k < 46; k++) {
+        var sx = rand() * W, sy = rand() * 460, sz = 3 + rand() * 5;
+        svg.push('<rect x="' + sx.toFixed(0) + '" y="' + sy.toFixed(0) + '" width="' + sz.toFixed(1) + '" height="' + sz.toFixed(1) + '" fill="#f2ede3" opacity="' + (0.35 + rand() * 0.5).toFixed(2) + '"/>');
+      }
+    }
+
+    // Sol (o luna): anillos concéntricos que recorren el cielo durante el periodo
+    var spans = { alba: [5, 8], dia: [8, 17], atardecer: [17, 19], noche: [19, 29] };
+    var sp = spans[name], hh = h < 5 ? h + 24 : h;
+    var f = Math.max(0, Math.min(1, (hh + now.getMinutes() / 60 - sp[0]) / (sp[1] - sp[0])));
+    var cx = 820 + f * 600, cy = 470 - Math.sin(Math.PI * f) * 250, r = 88;
+    svg.push('<circle cx="' + cx.toFixed(0) + '" cy="' + cy.toFixed(0) + '" r="' + r + '" fill="' + sky.ring + '"/>');
+    svg.push('<circle cx="' + cx.toFixed(0) + '" cy="' + cy.toFixed(0) + '" r="' + (r * 0.74).toFixed(0) + '" fill="' + sky.sun + '"/>');
+    svg.push('<circle cx="' + cx.toFixed(0) + '" cy="' + cy.toFixed(0) + '" r="' + (r * 0.42).toFixed(0) + '" fill="' + sky.ring + '"/>');
+
+    // Tres cordilleras, de la más lejana a la más cercana
+    [560, 630, 700].forEach(function (base, i) {
+      var pts = [], step = 200 - i * 30, x = -step;
+      while (x <= W + step) {
+        pts.push([x, base - (30 + rand() * (120 - i * 30))]);
+        x += step * (0.7 + rand() * 0.6);
+      }
+      var d = "M0 " + H + " L" + pts[0][0] + " " + pts[0][1];
+      for (var q = 1; q < pts.length; q++) {
+        var mx = (pts[q - 1][0] + pts[q][0]) / 2, my = (pts[q - 1][1] + pts[q][1]) / 2;
+        d += " Q" + pts[q - 1][0].toFixed(0) + " " + pts[q - 1][1].toFixed(0) + " " + mx.toFixed(0) + " " + my.toFixed(0);
+      }
+      d += " L" + W + " " + H + " Z";
+      svg.push('<path d="' + d + '" fill="url(#band' + i + ')"/>');
+    });
+    $("sky-art").innerHTML = svg.join("");
   }
 
   tick();

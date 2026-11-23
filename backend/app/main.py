@@ -18,12 +18,14 @@ from pydantic import BaseModel
 from app import config
 from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
+from app.lyrics import LyricsClient, LyricsFetcher, LyricsUnavailable
 from app.media import CommandQueue, MediaCommand
 from app.now_playing import ArtError, NowPlaying, NowPlayingUpdate
 
 BT_WAIT_POLLS = 8
 HEALTH_CACHE_S = 60
 MAX_WAIT_S = 30
+NO_LYRICS = "Sin letra para esta canción"
 PANEL_DIR = Path(__file__).parent / "panel"
 
 
@@ -50,6 +52,7 @@ def create_app(
     token: str | None = None,
     bluetooth_targets: dict[str, BluetoothTarget] | None = None,
     bluetooth_controller: BluetoothController | None = None,
+    lyrics_fetcher: LyricsFetcher | None = None,
 ) -> FastAPI:
     # Sin inyección se arranca de verdad: se lee .env y la configuración
     from_config = devices is None or token is None
@@ -116,6 +119,7 @@ def create_app(
 
     now_playing = NowPlaying()
     media_queue = CommandQueue()
+    lyrics = LyricsClient(lyrics_fetcher)
 
     app = FastAPI(title="selfRoomHub")
 
@@ -190,6 +194,21 @@ def create_app(
         except ArtError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
         return now_playing.to_json()
+
+    # def: la consulta a LRCLIB bloquea y corre en el threadpool
+    @app.get("/lyrics", dependencies=[Depends(auth)])
+    def read_lyrics() -> dict[str, object]:
+        title = now_playing.title
+        if not title:
+            raise HTTPException(status_code=404, detail=NO_LYRICS)
+        artist = now_playing.artist
+        try:
+            found = lyrics.lookup(title, artist, now_playing.album, now_playing.duration_ms)
+        except LyricsUnavailable as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        if found is None:
+            raise HTTPException(status_code=404, detail=NO_LYRICS)
+        return {"title": title, "artist": artist, **found, "source": "lrclib"}
 
     # async: el long-poll no ocupa hilos y la cola se toca solo desde el loop
     @app.post("/media/command", status_code=202, dependencies=[Depends(auth)])
