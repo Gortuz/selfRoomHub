@@ -345,7 +345,7 @@ html, body {
 .lyrics-artist { margin: 6px 0 0; font-weight: 700; font-size: 16px; color: var(--bone); }
 .lyrics-scroll {
   position: relative;
-  min-height: 0; height: 100%;
+  min-height: 0; height: calc(100% - 22px); /* deja libre la franja de las marcas de vista */
   overflow: hidden;
   -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
   mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
