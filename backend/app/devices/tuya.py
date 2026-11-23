@@ -18,6 +18,7 @@ class TuyaDevice(Device):
         local_key: str,
         version: str | float = "3.5",
         switch_dp: int = 1,
+        timer_dp: int = 9,
         client: Any = None,
     ):
         self.id = id
@@ -27,6 +28,7 @@ class TuyaDevice(Device):
         self.local_key = local_key
         self.version = float(version)
         self.switch_dp = switch_dp
+        self.timer_dp = timer_dp
         self._client = client  # inyectable para tests
         # tinytuya no es seguro entre hilos y FastAPI atiende peticiones en paralelo
         self._lock = threading.Lock()
@@ -57,6 +59,15 @@ class TuyaDevice(Device):
     def off(self) -> None:
         with self._lock:
             self._raise_on_error(self.client.turn_off(switch=self.switch_dp))
+
+    def set_timer(self, seconds: int) -> None:
+        # Cuenta regresiva en segundos en el dp del temporizador; 0 cancela
+        try:
+            with self._lock:
+                result = self.client.set_value(self.timer_dp, seconds)
+        except OSError as e:
+            raise DeviceError(f"{self.id}: {e}") from e
+        self._raise_on_error(result)
 
     def status(self) -> DeviceStatus:
         try:

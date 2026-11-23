@@ -72,6 +72,9 @@ NFC / Tasker        ──┘        │
 - `POST /devices/{id}/power` con body `{"on": true|false}`
 - `POST /devices/{id}/toggle` (invierte el estado; útil para un solo sticker NFC o atajo)
 - `GET /scenes`, `POST /scenes/{name}`
+- `POST /devices/{id}/timer` con body `{"minutes": 0..720}` (apaga tras ese tiempo; 0 cancela; 501 si no hay temporizador)
+- `GET /mode`, `PUT /mode` con body `{"mode": "day"|"night"|"auto"}` (modo día/noche por horario o forzado)
+- `GET /routines`, `POST /routines/{name}` (ejecuta la escena de la ventana horaria actual; 409 si ninguna aplica)
 - `GET /bluetooth`: lista los dispositivos Bluetooth configurados y si el servidor está conectado a cada uno
 - `POST /bluetooth/{id}/connect`: conecta el servidor a ese dispositivo Bluetooth
 - `POST /bluetooth/{id}/disconnect`: desconecta el servidor de ese dispositivo Bluetooth

@@ -9,6 +9,7 @@ class FakeDevice(Device):
         self.name = name
         self._on = initially_on
         self.online = online
+        self.timer: int | None = None
 
     def _check(self) -> None:
         if not self.online:
@@ -26,3 +27,7 @@ class FakeDevice(Device):
         if not self.online:
             return DeviceStatus(online=False, on=None)
         return DeviceStatus(online=True, on=self._on)
+
+    def set_timer(self, seconds: int) -> None:
+        self._check()
+        self.timer = seconds

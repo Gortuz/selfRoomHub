@@ -88,3 +88,39 @@ def test_llamadas_concurrentes_no_se_solapan():
         for i in range(16):
             pool.submit(d.on if i % 2 else d.status)
     assert not c.overlap
+
+
+# --- temporizador
+
+
+class TimerClient(FakeClient):
+    def set_value(self, index, value):
+        self.calls.append(("set_value", index, value))
+        return self.error or {"dps": {str(index): value}}
+
+
+def test_set_timer_dp_y_segundos():
+    c = TimerClient()
+    d = TuyaDevice("t", "T", "devid", "1.2.3.4", "key", client=c)
+    d.set_timer(2700)
+    d.set_timer(0)
+    assert c.calls == [("set_value", 9, 2700), ("set_value", 9, 0)]
+
+
+def test_set_timer_dp_configurable():
+    c = TimerClient()
+    TuyaDevice("t", "T", "d", "1.2.3.4", "k", timer_dp=11, client=c).set_timer(60)
+    assert c.calls == [("set_value", 11, 60)]
+
+
+def test_set_timer_errores_a_device_error():
+    d = make(TimerClient(error={"Error": "Network Error"}))
+    with pytest.raises(DeviceError):
+        d.set_timer(60)
+
+    class Boom(TimerClient):
+        def set_value(self, index, value):
+            raise OSError("sin red")
+
+    with pytest.raises(DeviceError):
+        make(Boom()).set_timer(60)

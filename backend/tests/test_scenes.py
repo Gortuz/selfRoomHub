@@ -275,3 +275,50 @@ def test_power_on_sin_comillas_en_yaml(tmp_path):
     raw = yaml.safe_load("a:\n  - power: { device: lamp, on: true }\n  - wake\n")
     scenes = parse_scenes(raw, {"lamp"}, set())
     assert len(scenes["a"]) == 2
+
+
+# --- timer y mode
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        {"timer": {"device": "nada", "minutes": 5}},
+        {"timer": {"device": "lamp", "minutes": 721}},
+        {"timer": {"device": "lamp", "minutes": -1}},
+        {"timer": {"device": "lamp", "minutes": "5"}},
+        {"timer": {"device": "lamp", "minutes": True}},
+        {"timer": {"minutes": 5}},
+        {"timer": 5},
+        {"mode": "tarde"},
+        {"mode": {"x": 1}},
+    ],
+)
+def test_timer_mode_invalidos(step):
+    with pytest.raises(SceneError):
+        parse({"s": [step]})
+
+
+def test_timer_mode_validos():
+    steps = parse({"s": [{"timer": {"device": "lamp", "minutes": 720}}, {"mode": "auto"}]})["s"]
+    assert [s.kind for s in steps] == ["timer", "mode"]
+
+
+def test_ejecuta_timer_y_mode():
+    ctx, _ = make_ctx()
+    steps = parse({"s": [{"timer": {"device": "lamp", "minutes": 45}}, {"mode": "night"}]})["s"]
+    res = run_scene(steps, ctx)
+    assert all(r["ok"] for r in res)
+    assert ctx.devices["lamp"].timer == 2700
+    assert ctx.mode.current()["mode"] == "night"
+
+
+def test_timer_fallos_no_detienen():
+    ctx, _ = make_ctx()
+    steps = parse_scenes(
+        {"s": [{"timer": {"device": "dead", "minutes": 5}}, {"mode": "day"}]},
+        ["dead"],
+        [],
+    )["s"]
+    res = run_scene(steps, ctx)
+    assert [r["ok"] for r in res] == [False, True]

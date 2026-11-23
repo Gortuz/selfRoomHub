@@ -11,6 +11,8 @@ import logging
 import re
 import secrets
 import time
+from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -18,7 +20,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app import config
 from app.battery import BatteryError, BatteryMonitor
@@ -34,7 +36,9 @@ from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
 from app.lyrics import LyricsClient, LyricsFetcher, LyricsUnavailable
 from app.media import CommandQueue, MediaCommand
+from app.mode import ModeState
 from app.now_playing import ArtError, NowPlaying, NowPlayingUpdate
+from app.routines import Window
 from app.scenes import SceneContext, Step, run_scene
 from app.spotify import SpotifyClient, SpotifyError
 
@@ -56,6 +60,14 @@ class SpotifyPlayRequest(BaseModel):
     type: Literal["artist", "album", "playlist", "track"] = "artist"
     device: str | None = None
     shuffle: bool | None = None
+
+
+class TimerRequest(BaseModel):
+    minutes: int = Field(ge=0, le=720)
+
+
+class ModeRequest(BaseModel):
+    mode: Literal["day", "night", "auto"]
 
 
 def _state(device: Device) -> dict[str, object]:
@@ -104,6 +116,8 @@ def create_app(
     battery_watch: bool | None = None,
     scenes: dict[str, list[Step]] | None = None,
     spotify: SpotifyClient | None = None,
+    routines: dict[str, list[Window]] | None = None,
+    clock: Callable[[], datetime] = datetime.now,
 ) -> FastAPI:
     # Sin inyección se arranca de verdad: se lee .env y la configuración
     from_config = devices is None or token is None
@@ -121,6 +135,10 @@ def create_app(
             config.load_scenes(config.get_config_path(), devices, bt_targets) if from_config else {}
         )
     scene_defs = scenes
+    if routines is None:
+        routines = config.load_routines(config.get_config_path(), scene_defs) if from_config else {}
+    routine_defs = routines
+    mode_state = ModeState.from_env(clock)
     bt = bluetooth_controller or BluetoothController()
     expected = token
     registry = devices
@@ -179,7 +197,7 @@ def create_app(
     if spotify is None:
         spotify = SpotifyClient.from_env() if from_config else SpotifyClient(None)
     sp = spotify
-    scene_ctx = SceneContext(registry, bt, bt_targets, media_queue, spotify=sp)
+    scene_ctx = SceneContext(registry, bt, bt_targets, media_queue, spotify=sp, mode=mode_state)
 
     battery_monitor = battery or BatteryMonitor()
     thresholds = thresholds_from_env()
@@ -276,6 +294,26 @@ def create_app(
             raise HTTPException(status_code=503, detail=str(e)) from e
         return _state(device)
 
+    @app.post("/devices/{device_id}/timer", dependencies=[Depends(auth)])
+    def set_timer(device_id: str, body: TimerRequest) -> dict[str, object]:
+        device = get_device(device_id)
+        try:
+            device.set_timer(body.minutes * 60)
+        except NotImplementedError as e:
+            raise HTTPException(status_code=501, detail=str(e)) from e
+        except DeviceError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        return {"id": device.id, "minutes": body.minutes}
+
+    @app.get("/mode", dependencies=[Depends(auth)])
+    def read_mode() -> dict[str, str]:
+        return mode_state.current()
+
+    @app.put("/mode", dependencies=[Depends(auth)])
+    def put_mode(body: ModeRequest) -> dict[str, str]:
+        mode_state.set(body.mode)
+        return mode_state.current()
+
     @app.get("/bluetooth", dependencies=[Depends(auth)])
     def list_bluetooth() -> list[dict[str, object]]:
         return [bt_state(t) for t in bt_targets.values()]
@@ -312,6 +350,28 @@ def create_app(
             raise HTTPException(status_code=404, detail=f"Escena no encontrada: {name}")
         results = run_scene(steps, scene_ctx)
         return {"name": name, "ok": all(r["ok"] for r in results), "steps": results}
+
+    @app.get("/routines", dependencies=[Depends(auth)])
+    def list_routines() -> list[dict[str, object]]:
+        return [{"name": n, "windows": [w.to_json() for w in ws]} for n, ws in routine_defs.items()]
+
+    @app.post("/routines/{name}", dependencies=[Depends(auth)])
+    def post_routine(name: str) -> dict[str, object]:
+        windows = routine_defs.get(name)
+        if windows is None:
+            raise HTTPException(status_code=404, detail=f"Rutina no encontrada: {name}")
+        now = clock()
+        window = next((w for w in windows if w.contains(now.time())), None)
+        if window is None:
+            raise HTTPException(status_code=409, detail=f"Ninguna escena aplica a las {now:%H:%M}")
+        results = run_scene(scene_defs[window.scene], scene_ctx)
+        return {
+            "name": window.scene,
+            "ok": all(r["ok"] for r in results),
+            "steps": results,
+            "routine": name,
+            "scene": window.scene,
+        }
 
     def spotify_http_error(e: SpotifyError) -> HTTPException:
         code = e.status if e.status in (404, 409, 422) else 502

@@ -19,6 +19,7 @@ rm -rf /tmp/atajos               # contienen el token
 | Movie mode | Solo Mac: enciende, el servidor suelta el parlante Bluetooth y la Mac se conecta (`blueutil`) |
 | Music mode | Si corre en la Mac la suelta; luego el servidor se conecta al parlante |
 | (escenas) | Con `--scene charly=Peluche`, un atajo "Peluche" que llama a `POST /scenes/charly`; ideal para un sticker NFC |
+| (rutinas) | Con `--routine cama=Cama`, un atajo que llama a `POST /routines/cama`: la escena depende de la hora |
 
 `--bt-id` y `--bt-address` son opcionales: sin ellos solo se generan los tres primeros. Ver `docs/bluetooth-audio.md`.
 

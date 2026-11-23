@@ -16,10 +16,13 @@ from pydantic import ValidationError
 from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
 from app.media import CommandQueue, MediaCommand
+from app.mode import ModeState
 from app.spotify import DeviceNotFound, SpotifyClient, SpotifyError
 
 NAME_RE = re.compile(r"^[a-z0-9_-]+$")
-STEP_KINDS = ("power", "toggle", "bluetooth", "media", "spotify", "wake", "wait")
+STEP_KINDS = ("power", "toggle", "bluetooth", "media", "spotify", "wake", "wait", "timer", "mode")
+MODE_VALUES = ("night", "day", "auto")
+MAX_TIMER_MIN = 720
 SPOTIFY_TYPES = ("artist", "album", "playlist", "track")
 SPOTIFY_WAKE_WAIT_S = 3
 MAX_WAIT_S = 30
@@ -44,6 +47,7 @@ class SceneContext:
     queue: CommandQueue
     sleep: Callable[[float], None] = time.sleep
     spotify: SpotifyClient | None = None
+    mode: ModeState = field(default_factory=ModeState)
 
 
 def _ids(valid: Collection[str]) -> str:
@@ -67,6 +71,10 @@ def _parse_step(raw: Any, devices: Collection[str], bt_ids: Collection[str]) -> 
         if not 0 <= body <= MAX_WAIT_S:
             raise SceneError(f"wait debe estar entre 0 y {MAX_WAIT_S} segundos")
         return Step("wait", {"seconds": body})
+    if kind == "mode":
+        if body not in MODE_VALUES:
+            raise SceneError(f"mode debe ser uno de: {', '.join(MODE_VALUES)}")
+        return Step("mode", {"mode": body})
     if not isinstance(body, dict):
         raise SceneError(f"{kind} exige un dict de parámetros")
     # YAML 1.1 lee la clave `on` (sin comillas) como el booleano True
@@ -83,6 +91,17 @@ def _parse_step(raw: Any, devices: Collection[str], bt_ids: Collection[str]) -> 
         if not isinstance(body.get("on"), bool):
             raise SceneError("power exige on true/false")
         return Step("power", {"device": device, "on": body["on"]})
+    if kind == "timer":
+        device, minutes = body.get("device"), body.get("minutes")
+        if not isinstance(device, str):
+            raise SceneError("timer exige device")
+        if device not in devices:
+            raise SceneError(f"dispositivo inexistente {device!r} (válidos: {_ids(devices)})")
+        if isinstance(minutes, bool) or not isinstance(minutes, int):
+            raise SceneError("timer exige minutes (entero)")
+        if not 0 <= minutes <= MAX_TIMER_MIN:
+            raise SceneError(f"timer minutes debe estar entre 0 y {MAX_TIMER_MIN}")
+        return Step("timer", {"device": device, "minutes": minutes})
     if kind == "bluetooth":
         target = body.get("id")
         if not isinstance(target, str):
@@ -182,6 +201,18 @@ def _do_step(step: Step, ctx: SceneContext) -> str:
             raise SceneError(f"{device.id} está fuera de línea")
         device.off() if st.on else device.on()
         return f"{device.id} {'apagado' if st.on else 'encendido'}"
+    if step.kind == "timer":
+        device = ctx.devices[a["device"]]
+        try:
+            device.set_timer(a["minutes"] * 60)
+        except NotImplementedError as e:
+            raise SceneError(f"{device.id} no tiene temporizador") from e
+        if a["minutes"] == 0:
+            return f"temporizador de {device.id} cancelado"
+        return f"{device.id} se apagará en {a['minutes']} min"
+    if step.kind == "mode":
+        ctx.mode.set(a["mode"])
+        return f"modo {a['mode']}"
     if step.kind == "bluetooth":
         target = ctx.bt_targets[a["id"]]
         word = "conectado" if a["connect"] else "desconectado"

@@ -80,7 +80,9 @@
     $("clock").setAttribute("datetime", now.toISOString());
     $("date").textContent = dateFmt ? dateFmt.format(now) : now.toDateString();
     var h = now.getHours();
-    body.classList.toggle("night", h >= NIGHT_FROM || h < NIGHT_TO);
+    // El modo lo decide el backend (escenas y horario); si no responde, se usa la hora local
+    var night = state.mode ? state.mode === "night" : (h >= NIGHT_FROM || h < NIGHT_TO);
+    body.classList.toggle("night", night);
     $("sky-clock").textContent = hhmm;
     $("sky-date").textContent = $("date").textContent;
     if (typeof drawSky === "function") drawSky(now);
@@ -92,6 +94,7 @@
     audioHere: null,    // el servidor tiene el parlante Bluetooth
     btAvailable: true,  // Shizuku activo
     battery: null,      // última lectura de /battery (con "advice")
+    mode: null,         // "day" | "night" según /mode
     offline: false,
     playing: false,
     volume: null
@@ -455,6 +458,21 @@
       .catch(function () { state.battery = null; renderBattery($("battery"), null); renderBattery($("sky-battery"), null); render(); });
   }
 
+  // --- Modo día/noche (lo cambian las escenas; el horario es el respaldo) ---
+  function refreshMode() {
+    if (!token) return;
+    api("GET", "/mode")
+      .then(function (m) {
+        var was = state.mode;
+        state.mode = m.mode;
+        // Al entrar en modo noche el panel pasa al reloj
+        if (was && was !== "night" && m.mode === "night") setView(2);
+        tick();
+        updateAwake();
+      })
+      .catch(function () { state.mode = null; });
+  }
+
   function refreshHealth() {
     fetch("/health").then(function (r) { return r.json(); })
       .then(function (h) { state.btAvailable = h.bluetooth !== "unavailable"; state.offline = false; })
@@ -761,7 +779,9 @@
     if (!hasScreenApi) return;
     var timeout = android.screenOffTimeout ? android.screenOffTimeout() : 60000;
     var hold = Math.max(0, IDLE_LIMIT - timeout);
-    var want = state.playing || !$("sheet").hidden || Date.now() - lastTouch < hold;
+    // De noche la música no retiene la pantalla: solo un toque reciente o el menú abierto
+    var night = state.mode === "night";
+    var want = (state.playing && !night) || !$("sheet").hidden || Date.now() - lastTouch < hold;
     if (want !== keptAwake) {
       keptAwake = want;
       android.setKeepAwake(want);
@@ -779,4 +799,6 @@
   setInterval(refreshHealth, 30000);
   refreshBattery();
   setInterval(refreshBattery, 60000);
+  refreshMode();
+  setInterval(refreshMode, 20000);
 })();

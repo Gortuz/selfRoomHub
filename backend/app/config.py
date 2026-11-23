@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from app.bluetooth import BluetoothTarget, normalize_address
 from app.devices.base import Device
 from app.devices.registry import build_device
+from app.routines import Window, parse_routines
 from app.scenes import Step, parse_scenes
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -91,3 +92,11 @@ def load_scenes(
         return {}
     data = yaml.safe_load(path.read_text()) or {}
     return parse_scenes(_interpolate(data.get("scenes")), device_ids, bt_ids)
+
+
+def load_routines(path: Path, scene_names: Collection[str]) -> dict[str, list[Window]]:
+    """Sección opcional `routines` de devices.yaml; vacía si no existe."""
+    if not path.is_file():
+        return {}
+    data = yaml.safe_load(path.read_text()) or {}
+    return parse_routines(_interpolate(data.get("routines")), scene_names)

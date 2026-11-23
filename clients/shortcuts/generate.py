@@ -117,6 +117,7 @@ def build(
     bt_id: str | None,
     bt_addr: str | None,
     scenes: dict[str, str] | None = None,
+    routines: dict[str, str] | None = None,
 ) -> dict[str, dict]:
     dev = f"{url}/devices/{device}"
     shortcuts = {
@@ -148,6 +149,9 @@ def build(
     # Un atajo por escena: una sola petición, la lógica vive en el backend
     for scene, label in (scenes or {}).items():
         shortcuts[label] = [request(f"{url}/scenes/{scene}", token)]
+    # Una rutina elige la escena según la hora (p. ej. noche o día con el mismo sticker)
+    for routine, label in (routines or {}).items():
+        shortcuts[label] = [request(f"{url}/routines/{routine}", token)]
     return {name: workflow(actions) for name, actions in shortcuts.items()}
 
 
@@ -166,6 +170,13 @@ def main() -> None:
         metavar="ESCENA=NOMBRE",
         help="atajo que ejecuta una escena, p. ej. --scene charly=Peluche (repetible)",
     )
+    ap.add_argument(
+        "--routine",
+        action="append",
+        default=[],
+        metavar="RUTINA=NOMBRE",
+        help="atajo que ejecuta una rutina por horario, p. ej. --routine cama=Cama (repetible)",
+    )
     args = ap.parse_args()
 
     token = os.environ.get("SELFROOMHUB_TOKEN")
@@ -174,7 +185,10 @@ def main() -> None:
 
     args.out.mkdir(parents=True, exist_ok=True)
     scenes = dict(item.split("=", 1) for item in args.scene)
-    built = build(args.url.rstrip("/"), token, args.device, args.bt_id, args.bt_address, scenes)
+    routines = dict(item.split("=", 1) for item in args.routine)
+    built = build(
+        args.url.rstrip("/"), token, args.device, args.bt_id, args.bt_address, scenes, routines
+    )
     for name, wf in built.items():
         if args.only and name not in args.only:
             continue

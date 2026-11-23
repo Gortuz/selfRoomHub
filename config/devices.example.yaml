@@ -27,3 +27,20 @@ scenes:
     - media: { action: play_search, query: "Nombre de un artista", focus: artist }
   apagar_todo:
     - power: { device: parlantes, on: false }
+  noche:
+    - mode: night
+    - power: { device: parlantes, on: true }
+    - wait: 4
+    - bluetooth: { id: parlantes, connect: true }
+    - spotify: { play: "nombre de playlist", type: playlist, shuffle: true }
+    - timer: { device: parlantes, minutes: 45 }   # el enchufe apaga los parlantes solo
+  dia:
+    - mode: day
+    - spotify: { uri: "spotify:playlist:XXXXXXXX", type: playlist }
+
+# Opcional: rutinas; ejecutan la escena cuya ventana horaria contiene la hora actual
+# (from inclusivo, to exclusivo; from > to cruza la medianoche)
+routines:
+  cama:
+    - { from: "22:00", to: "06:30", scene: noche }
+    - { from: "06:30", to: "22:00", scene: dia }

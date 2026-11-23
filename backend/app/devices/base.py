@@ -26,3 +26,7 @@ class Device(ABC):
 
     @abstractmethod
     def status(self) -> DeviceStatus: ...
+
+    def set_timer(self, seconds: int) -> None:
+        """Cuenta regresiva que apaga el dispositivo; 0 la cancela."""
+        raise NotImplementedError(f"{self.id} no tiene temporizador")
