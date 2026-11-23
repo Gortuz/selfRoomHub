@@ -80,6 +80,8 @@ html, body {
 }
 .date::first-letter { text-transform: uppercase; }
 .idle .date { margin-left: 0; }
+/* Con temporizador activo la barra no alcanza: la fecha cede su lugar (sigue en la vista Reloj) */
+.timer-on .bar .date { display: none; }
 
 /* Batería del servidor: pila dibujada con el nivel en tinta, rayo al cargar */
 .battery {

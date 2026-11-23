@@ -458,6 +458,7 @@
     $("sleep-timer").innerHTML = m === null ? "" : MOON + text;
     $("sleep-timer").setAttribute("aria-label", m === null ? "" : "Los parlantes se apagan en " + text);
     $("sleep-timer").hidden = m === null;
+    body.classList.toggle("timer-on", m !== null);
     $("sky-timer").textContent = m === null ? "" : "Los parlantes se apagan en " + text;
     $("sky-timer").hidden = m === null;
     $("fact-timer-row").hidden = m === null;
