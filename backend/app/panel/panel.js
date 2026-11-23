@@ -65,7 +65,7 @@
 
   // --- Reloj y fecha ---
   var dateFmt;
-  try { dateFmt = new Intl.DateTimeFormat("es-EC", { weekday: "long", day: "numeric", month: "long" }); }
+  try { dateFmt = new Intl.DateTimeFormat("es-EC", { weekday: "short", day: "numeric", month: "short" }); }
   catch (e) { dateFmt = null; }
 
   function pad(n) { return (n < 10 ? "0" : "") + n; }
@@ -157,13 +157,20 @@
     img.src = url;
   }
 
+  // "Octopus's Garden - Remastered 2009" → ["Octopus's Garden", "Remastered 2009"]
+  function splitTitle(t) {
+    var m = t.match(/^(.+?)\s+[-\u2013\u2014]\s+(.+)$/) || t.match(/^(.+?)\s*[(\[]([^)\]]+)[)\]]\s*$/);
+    return m ? [m[1], m[2]] : [t, ""];
+  }
+
   // El título ocupa todo el espacio libre del afiche: se busca el tamaño mayor que entra
   function fitTitle() {
     var title = $("title"), poster = $("track");
-    var avail = poster.clientHeight - ($("artist").offsetHeight || 0) - 12;
+    var avail = poster.clientHeight - ($("artist").offsetHeight || 0) - ($("version").offsetHeight || 0) - 18;
     var width = poster.clientWidth;
     if (avail <= 0 || width <= 0) return;
-    var size = Math.min(avail, body.classList.contains("idle") ? 260 : 132);
+    // Tope: el título manda, pero deja aire a la hora y a los controles
+    var size = Math.min(avail, body.classList.contains("idle") ? 220 : 84);
     title.style.fontSize = size + "px";
     while (size > 18 && (title.scrollHeight > avail || title.scrollWidth > width)) {
       size -= 3;
@@ -183,10 +190,12 @@
     state.playing = !!(np && np.playing);
     body.classList.toggle("idle", !hasTrack);
     $("track").classList.toggle("paused", hasTrack && !np.playing);
-    var title = hasTrack ? np.title : $("clock").textContent;
+    var parts = hasTrack ? splitTitle(np.title) : [$("clock").textContent, ""];
     var artist = hasTrack ? (np.artist || "") : "";
-    if ($("title").textContent !== title || $("artist").textContent !== artist) {
-      $("title").textContent = title;
+    if ($("title").textContent !== parts[0] || $("version").textContent !== parts[1] || $("artist").textContent !== artist) {
+      $("title").textContent = parts[0];
+      $("version").textContent = parts[1];
+      $("version").hidden = !parts[1];
       $("artist").textContent = artist;
       fitTitle();
     }
@@ -197,11 +206,9 @@
     pp.setAttribute("aria-label", state.playing ? "Pausar" : "Reproducir");
 
     if (np && typeof np.volume === "number") {
-      state.volume = np.volume;
-      if (!dragging) {
-        $("volume").value = np.volume;
-        showVolume(np.volume);
-      }
+      if (Date.now() - lastVolumeSet > 3000) state.volume = np.volume;
+      // Tras mover el fader, el servidor tarda un poco en confirmar: no volver atrás mientras tanto
+      if (!dragging && Date.now() - lastVolumeSet > 3000) showVolume(np.volume);
     }
     // Los controles solo tienen sentido si la app del servidor está informando
     $("transport").hidden = state.volume === null;
@@ -223,19 +230,65 @@
     command("toggle");
   });
 
+  // Canal vertical: se arrastra con el pulgar o se usa + / −. Android tiene 16 pasos (0–15).
   var dragging = false;
-  var volume = $("volume");
+  var rail = $("volume");
+  var STEPS = 15;
+
   function showVolume(v) {
     $("volume-value").textContent = v + " %";
-    volume.style.setProperty("--fill", v + "%");
+    $("rail-fill").style.height = v + "%";
+    $("rail-cap").style.bottom = v + "%";
+    rail.setAttribute("aria-valuenow", v);
+    rail.setAttribute("aria-valuetext", v + " %");
   }
-  volume.addEventListener("input", function () {
+
+  function snap(v) { return Math.round(Math.round(v / 100 * STEPS) / STEPS * 100); }
+
+  var lastVolumeSet = 0;
+  function sendVolume(v) {
+    v = Math.max(0, Math.min(100, v));
+    lastVolumeSet = Date.now();
+    state.volume = v;
+    showVolume(v);
+    command("volume", v);
+  }
+
+  function valueAt(clientY) {
+    var r = rail.getBoundingClientRect();
+    var v = (1 - (clientY - r.top) / r.height) * 100;
+    return snap(Math.max(0, Math.min(100, v)));
+  }
+
+  function railDown(e) {
     dragging = true;
-    showVolume(volume.value);
-  });
-  volume.addEventListener("change", function () {
+    rail.classList.add("dragging");
+    if (rail.setPointerCapture && e.pointerId !== undefined) rail.setPointerCapture(e.pointerId);
+    showVolume(valueAt(e.clientY));
+    e.preventDefault();
+  }
+  function railMove(e) { if (dragging) showVolume(valueAt(e.clientY)); }
+  function railUp(e) {
+    if (!dragging) return;
     dragging = false;
-    command("volume", parseInt(volume.value, 10));
+    rail.classList.remove("dragging");
+    sendVolume(valueAt(e.clientY));
+  }
+  rail.addEventListener("pointerdown", railDown);
+  rail.addEventListener("pointermove", railMove);
+  rail.addEventListener("pointerup", railUp);
+  rail.addEventListener("pointercancel", function () { dragging = false; rail.classList.remove("dragging"); });
+
+  function stepBy(n) {
+    var current = state.volume === null ? 0 : state.volume;
+    var step = Math.round(current / 100 * STEPS) + n;
+    sendVolume(Math.round(Math.max(0, Math.min(STEPS, step)) / STEPS * 100));
+  }
+  $("vol-up").addEventListener("click", function () { stepBy(1); });
+  $("vol-down").addEventListener("click", function () { stepBy(-1); });
+  rail.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowUp" || e.key === "ArrowRight") { stepBy(1); e.preventDefault(); }
+    if (e.key === "ArrowDown" || e.key === "ArrowLeft") { stepBy(-1); e.preventDefault(); }
   });
 
   // --- Menú de parlantes ---

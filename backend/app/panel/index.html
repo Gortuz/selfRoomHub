@@ -26,6 +26,7 @@
 
       <div class="poster" id="track" aria-live="polite">
         <h1 id="title" class="title"></h1>
+        <p id="version" class="version" hidden></p>
         <p id="artist" class="artist"></p>
       </div>
 
@@ -41,14 +42,25 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 5H18v14h-2.5zM4 5v14l10.5-7z"/></svg>
         </button>
 
-        <label class="fader" id="fader" hidden>
-          <span class="fader-label">Volumen <output id="volume-value">–</output></span>
-          <input id="volume" type="range" min="0" max="100" step="1" value="0">
-        </label>
       </div>
 
       <p id="notice" class="notice" role="status" hidden></p>
     </section>
+
+    <aside class="channel" id="fader" aria-label="Volumen" hidden>
+      <button class="step" id="vol-up" type="button" aria-label="Subir volumen">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4h3v6.5H20v3h-6.5V20h-3v-6.5H4v-3h6.5z"/></svg>
+      </button>
+      <div class="rail" id="volume" role="slider" tabindex="0" aria-label="Volumen"
+           aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-orientation="vertical">
+        <div class="rail-fill" id="rail-fill"></div>
+        <div class="rail-cap" id="rail-cap"></div>
+      </div>
+      <button class="step" id="vol-down" type="button" aria-label="Bajar volumen">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5h16v3H4z"/></svg>
+      </button>
+      <output id="volume-value" class="channel-value">–</output>
+    </aside>
   </main>
 
   <div class="sheet-backdrop" id="sheet" hidden>

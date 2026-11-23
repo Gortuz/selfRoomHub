@@ -1,0 +1,357 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-23T02:09:59+00:00",
+  "title": "Design System: selfRoomHub",
+  "extensions": {
+    "colorMeta": {
+      "ink-1": {
+        "role": "primary",
+        "displayName": "Tinta 1, Amarillo Letrero",
+        "tonalRamp": [
+          "oklch(15% 0.084 105)",
+          "oklch(25% 0.113 105)",
+          "oklch(35% 0.142 105)",
+          "oklch(45% 0.171 105)",
+          "oklch(57% 0.194 105)",
+          "oklch(70% 0.156 105)",
+          "oklch(83% 0.119 105)",
+          "oklch(95% 0.084 105)"
+        ],
+        "note": "Valor de reposo; panel.js lo reemplaza en tiempo real con un tono de la portada (hsl(h, 100%, 58%), 68% entre 200 y 290 grados)."
+      },
+      "ink-2": {
+        "role": "secondary",
+        "displayName": "Tinta 2, Rosa Chicha",
+        "tonalRamp": [
+          "oklch(15% 0.100 355)",
+          "oklch(25% 0.135 355)",
+          "oklch(35% 0.170 355)",
+          "oklch(45% 0.205 355)",
+          "oklch(57% 0.233 355)",
+          "oklch(70% 0.188 355)",
+          "oklch(83% 0.142 355)",
+          "oklch(95% 0.100 355)"
+        ],
+        "note": "Valor de reposo; panel.js lo reemplaza en tiempo real con un tono de la portada (hsl(h, 100%, 58%), 68% entre 200 y 290 grados)."
+      },
+      "ink-3": {
+        "role": "tertiary",
+        "displayName": "Tinta 3, Verde Neón",
+        "tonalRamp": [
+          "oklch(15% 0.100 150)",
+          "oklch(25% 0.135 150)",
+          "oklch(35% 0.170 150)",
+          "oklch(45% 0.205 150)",
+          "oklch(57% 0.233 150)",
+          "oklch(70% 0.188 150)",
+          "oklch(83% 0.142 150)",
+          "oklch(95% 0.100 150)"
+        ],
+        "note": "Valor de reposo; panel.js lo reemplaza en tiempo real con un tono de la portada (hsl(h, 100%, 58%), 68% entre 200 y 290 grados)."
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Negro de Imprenta",
+        "tonalRamp": [
+          "oklch(15% 0.004 300)",
+          "oklch(25% 0.006 300)",
+          "oklch(35% 0.007 300)",
+          "oklch(45% 0.009 300)",
+          "oklch(57% 0.010 300)",
+          "oklch(70% 0.008 300)",
+          "oklch(83% 0.006 300)",
+          "oklch(95% 0.004 300)"
+        ]
+      },
+      "ground-raised": {
+        "role": "neutral",
+        "displayName": "Negro Plancha",
+        "tonalRamp": [
+          "oklch(15% 0.008 300)",
+          "oklch(25% 0.011 300)",
+          "oklch(35% 0.014 300)",
+          "oklch(45% 0.017 300)",
+          "oklch(57% 0.019 300)",
+          "oklch(70% 0.016 300)",
+          "oklch(83% 0.012 300)",
+          "oklch(95% 0.008 300)"
+        ]
+      },
+      "bone": {
+        "role": "neutral",
+        "displayName": "Blanco Hueso",
+        "tonalRamp": [
+          "oklch(15% 0.006 85)",
+          "oklch(25% 0.008 85)",
+          "oklch(35% 0.011 85)",
+          "oklch(45% 0.013 85)",
+          "oklch(57% 0.015 85)",
+          "oklch(70% 0.012 85)",
+          "oklch(83% 0.009 85)",
+          "oklch(95% 0.006 85)"
+        ]
+      },
+      "bone-soft": {
+        "role": "neutral",
+        "displayName": "Hueso Gastado",
+        "tonalRamp": [
+          "oklch(15% 0.006 75)",
+          "oklch(25% 0.008 75)",
+          "oklch(35% 0.011 75)",
+          "oklch(45% 0.013 75)",
+          "oklch(57% 0.015 75)",
+          "oklch(70% 0.012 75)",
+          "oklch(83% 0.009 75)",
+          "oklch(95% 0.006 75)"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Filete",
+        "tonalRamp": [
+          "oklch(15% 0.008 300)",
+          "oklch(25% 0.011 300)",
+          "oklch(35% 0.014 300)",
+          "oklch(45% 0.017 300)",
+          "oklch(57% 0.019 300)",
+          "oklch(70% 0.016 300)",
+          "oklch(83% 0.012 300)",
+          "oklch(95% 0.008 300)"
+        ]
+      },
+      "led-off": {
+        "role": "neutral",
+        "displayName": "LED Apagado",
+        "tonalRamp": [
+          "oklch(15% 0.008 300)",
+          "oklch(25% 0.011 300)",
+          "oklch(35% 0.014 300)",
+          "oklch(45% 0.017 300)",
+          "oklch(57% 0.019 300)",
+          "oklch(70% 0.016 300)",
+          "oklch(83% 0.012 300)",
+          "oklch(95% 0.008 300)"
+        ]
+      },
+      "alert": {
+        "role": "neutral",
+        "displayName": "Aviso Coral",
+        "tonalRamp": [
+          "oklch(15% 0.071 35)",
+          "oklch(25% 0.096 35)",
+          "oklch(35% 0.121 35)",
+          "oklch(45% 0.145 35)",
+          "oklch(57% 0.165 35)",
+          "oklch(70% 0.133 35)",
+          "oklch(83% 0.101 35)",
+          "oklch(95% 0.071 35)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Titular",
+        "purpose": "Canción o hora en reposo; tamaño ajustado por script al espacio libre (18 a 132px, 260px en reposo), mayúsculas, bandas de tinta."
+      },
+      "headline": {
+        "displayName": "Hora",
+        "purpose": "Reloj de la barra superior en tinta 1, cifras tabulares."
+      },
+      "title": {
+        "displayName": "Título de hoja",
+        "purpose": "Títulos de la hoja inferior y del formulario del token."
+      },
+      "body-strong": {
+        "displayName": "Artista",
+        "purpose": "Artista y texto de botones (16px, 700)."
+      },
+      "body": {
+        "displayName": "Texto",
+        "purpose": "Filas de la hoja, campos, avisos, ayuda."
+      },
+      "label": {
+        "displayName": "Etiqueta",
+        "purpose": "Fecha y etiqueta del fader en hueso gastado."
+      }
+    },
+    "shadows": [
+      {
+        "name": "sombra-hoja",
+        "value": "0 -16px 40px rgba(0, 0, 0, 0.5)",
+        "purpose": "Solo bajo la hoja inferior modal."
+      }
+    ],
+    "motion": [
+      {
+        "name": "rise",
+        "value": "translateY(28px) a 0, 0.24s cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Entrada de la hoja inferior; se anula con movimiento reducido."
+      },
+      {
+        "name": "blink",
+        "value": "opacity 1 a 0.3, 0.8s steps(2, start) infinite",
+        "purpose": "LED mientras una orden está en curso; se anula con movimiento reducido."
+      },
+      {
+        "name": "noche",
+        "value": "opacity 0.34 entre 23:00 y 6:00",
+        "purpose": "Atenuación nocturna del panel; la tecla principal pierde el relleno."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "portrait",
+        "value": "(orientation: portrait)"
+      }
+    ],
+    "overlays": [
+      {
+        "name": "velo-hoja",
+        "value": "rgba(12, 11, 14, 0.72)",
+        "purpose": "Velo del color del fondo detrás de la hoja inferior."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Tecla de transporte",
+      "kind": "button",
+      "refersTo": "key",
+      "description": "Tecla redonda de consola para anterior y siguiente.",
+      "html": "<button class=\"ds-key\" type=\"button\" aria-label=\"Canción siguiente\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M15.5 5H18v14h-2.5zM4 5v14l10.5-7z\"/></svg></button>",
+      "css": ".ds-key { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; padding: 0; border: 2px solid var(--rule, #3a3541); border-radius: 50%; background: transparent; color: var(--bone, #f2ede3); cursor: pointer; } .ds-key svg { width: 22px; height: 22px; fill: currentColor; } .ds-key:active { background: var(--ground-raised, #1a1720); } .ds-key:focus-visible { outline: 3px solid var(--ink-1); outline-offset: 3px; }"
+    },
+    {
+      "name": "Tecla principal",
+      "kind": "button",
+      "refersTo": "key-main",
+      "description": "Reproducir/pausa, la única tecla rellena de tinta.",
+      "html": "<button class=\"ds-key-main\" type=\"button\" aria-label=\"Reproducir\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7 4.5v15l12.5-7.5z\"/></svg></button>",
+      "css": ".ds-key-main { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; padding: 0; border: 2px solid var(--ink-1, #ffe600); border-radius: 50%; background: var(--ink-1, #ffe600); color: var(--ground, #0c0b0e); cursor: pointer; } .ds-key-main svg { width: 26px; height: 26px; fill: currentColor; } .ds-key-main:active { background: var(--bone, #f2ede3); border-color: var(--bone, #f2ede3); } .ds-key-main:focus-visible { outline: 3px solid var(--ink-1); outline-offset: 3px; }"
+    },
+    {
+      "name": "Botón Parlantes con LED",
+      "kind": "button",
+      "refersTo": "speakers",
+      "description": "Cápsula que abre la hoja; el LED muestra si hay corriente.",
+      "html": "<button class=\"ds-speakers\" type=\"button\" aria-pressed=\"true\"><span class=\"ds-led ds-led-on\" aria-hidden=\"true\"></span>Parlantes</button>",
+      "css": ".ds-speakers { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px 0 14px; border: 2px solid var(--rule, #3a3541); border-radius: 999px; background: transparent; color: var(--bone, #f2ede3); font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; font-weight: 700; font-size: 16px; cursor: pointer; } .ds-speakers:active { background: var(--ground-raised, #1a1720); } .ds-speakers:focus-visible { outline: 3px solid var(--ink-1); outline-offset: 3px; } .ds-led { width: 12px; height: 12px; margin-right: 10px; border-radius: 50%; background: var(--led-off, #4a4452); } .ds-led-on { background: var(--ink-1, #ffe600); }"
+    },
+    {
+      "name": "Acción primaria",
+      "kind": "button",
+      "refersTo": "action-primary",
+      "description": "Acción recta impresa, relleno hueso.",
+      "html": "<button class=\"ds-action ds-action-primary\" type=\"button\">Apagar parlantes</button>",
+      "css": ".ds-action { min-height: 50px; padding: 0 18px; border: 2px solid var(--rule, #3a3541); border-radius: 0; background: transparent; color: var(--bone, #f2ede3); font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; } .ds-action-primary { background: var(--bone, #f2ede3); border-color: var(--bone, #f2ede3); color: var(--ground, #0c0b0e); } .ds-action[disabled] { opacity: 0.45; cursor: default; } .ds-action:focus-visible { outline: 3px solid var(--ink-1); outline-offset: 3px; }"
+    },
+    {
+      "name": "Acción discreta",
+      "kind": "button",
+      "refersTo": "action-quiet",
+      "description": "Cerrar o cancelar, sin relleno y en hueso gastado.",
+      "html": "<button class=\"ds-action-quiet\" type=\"button\">Cerrar</button>",
+      "css": ".ds-action-quiet { min-height: 50px; padding: 0 18px; border: 2px solid var(--rule, #3a3541); border-radius: 0; background: transparent; color: var(--bone-soft, #b8b1a6); font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; font-size: 16px; font-weight: 400; cursor: pointer; } .ds-action-quiet:focus-visible { outline: 3px solid var(--ink-1); outline-offset: 3px; }"
+    },
+    {
+      "name": "Campo de token",
+      "kind": "input",
+      "refersTo": "input-token",
+      "description": "Campo recto sobre negro plancha.",
+      "html": "<input class=\"ds-input\" type=\"password\" placeholder=\"\" aria-label=\"Token\">",
+      "css": ".ds-input { width: 100%; min-height: 48px; padding: 0 14px; border: 2px solid var(--rule, #3a3541); border-radius: 0; background: var(--ground-raised, #1a1720); color: var(--bone, #f2ede3); font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; font-size: 17px; caret-color: var(--ink-1, #ffe600); } .ds-input:focus-visible { outline: 3px solid var(--ink-1); outline-offset: 3px; }"
+    },
+    {
+      "name": "Fader de volumen",
+      "kind": "custom",
+      "description": "Pista de corte duro en tinta 2 y perilla de consola con ranura.",
+      "html": "<label class=\"ds-fader\"><span class=\"ds-fader-label\">Volumen <output>60 %</output></span><input type=\"range\" min=\"0\" max=\"100\" value=\"60\" style=\"--fill: 60%\"></label>",
+      "css": ".ds-fader { display: flex; flex-direction: column; width: 280px; font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; } .ds-fader-label { font-size: 14px; color: var(--bone-soft, #b8b1a6); } .ds-fader-label output { color: var(--bone, #f2ede3); font-weight: 700; font-variant-numeric: tabular-nums; } .ds-fader input { -webkit-appearance: none; appearance: none; width: 100%; height: 40px; margin: 0; background: transparent; cursor: pointer; } .ds-fader input::-webkit-slider-runnable-track { height: 6px; background: linear-gradient(90deg, var(--ink-2, #ff3ea5) 0 var(--fill), var(--rule, #3a3541) var(--fill)); } .ds-fader input::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 34px; margin-top: -14px; border: 0; background: linear-gradient(var(--bone, #f2ede3) 0 44%, var(--ground, #0c0b0e) 44% 56%, var(--bone, #f2ede3) 56%); } .ds-fader input::-moz-range-track { height: 6px; background: var(--rule, #3a3541); } .ds-fader input::-moz-range-progress { height: 6px; background: var(--ink-2, #ff3ea5); } .ds-fader input::-moz-range-thumb { width: 20px; height: 34px; border: 0; border-radius: 0; background: linear-gradient(var(--bone, #f2ede3) 0 44%, var(--ground, #0c0b0e) 44% 56%, var(--bone, #f2ede3) 56%); } .ds-fader input:focus-visible { outline: 3px solid var(--ink-1); outline-offset: 3px; }"
+    },
+    {
+      "name": "Hoja inferior",
+      "kind": "card",
+      "refersTo": "sheet",
+      "description": "Hoja de cartel con filo de tinta y filas término/valor.",
+      "html": "<div class=\"ds-sheet\"><h2 class=\"ds-sheet-title\">Parlantes</h2><dl class=\"ds-facts\"><div><dt>Corriente</dt><dd><span class=\"ds-sheet-led\"></span>Encendidos</dd></div></dl></div>",
+      "css": ".ds-sheet { max-width: 540px; padding: 20px 24px 22px; background: var(--ground-raised, #1a1720); color: var(--bone, #f2ede3); border-top: 6px solid var(--ink-1, #ffe600); box-shadow: 0 -16px 40px rgba(0,0,0,0.5); font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; } .ds-sheet-title { margin: 0 0 10px; font-family: Bungee, 'Arial Black', sans-serif; font-weight: 400; font-size: 26px; color: var(--ink-1, #ffe600); } .ds-facts { margin: 0; } .ds-facts div { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--rule, #3a3541); font-size: 17px; } .ds-facts dt { color: var(--bone-soft, #b8b1a6); } .ds-facts dd { margin: 0; display: flex; align-items: center; } .ds-sheet-led { width: 12px; height: 12px; margin-right: 8px; border-radius: 50%; background: var(--ink-1, #ffe600); }"
+    },
+    {
+      "name": "Titular en bandas",
+      "kind": "custom",
+      "description": "Firma: titular Bungee en tres bandas de tinta de corte duro por renglón.",
+      "html": "<h1 class=\"ds-title\">La cumbia del sol</h1>",
+      "css": ".ds-title { margin: 0; font-family: Bungee, 'Arial Black', sans-serif; font-weight: 400; font-size: 64px; line-height: 0.95; text-transform: uppercase; overflow-wrap: anywhere; color: var(--ink-1, #ffe600); background: linear-gradient(180deg, var(--ink-1, #ffe600) 0 34%, var(--ink-2, #ff3ea5) 34% 67%, var(--ink-3, #39ff7a) 67% 100%); background-size: 100% 0.95em; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "El afiche chicha del día",
+    "overview": "El panel es un cartel de imprenta andino pegado sobre negro. Lo que suena se imprime como titular enorme, en mayúsculas de letrero y en bandas horizontales de tinta fluorescente plana; todo lo demás es blanco hueso sobre negro, quieto y legible a 60 cm. Las tintas no son fijas: cada portada nueva las recalcula, así que el afiche cambia de color con cada canción sin cambiar de forma.\n\nLa densidad es baja y la jerarquía es de cartel: portada cuadrada, titular, artista, consola. El color es una zona, no un recubrimiento. No hay vidrio, ni desenfoque de portada, ni degradados suaves; cuando aparece un degradado en CSS es un corte duro que imita tinta plana. De noche el panel entero baja a un tercio para no iluminar el cuarto.\n\nSe rechaza explícitamente la pantalla \"Reproduciendo\" de las apps de streaming: portada con fondo borroso y controles grises.",
+    "keyCharacteristics": [
+      "Negro de imprenta con blanco hueso; color solo en tinta plana.",
+      "Tres tintas fluorescentes que se recalculan desde la portada.",
+      "Titular Bungee en mayúsculas, ajustado al espacio libre, pintado en bandas de corte duro.",
+      "Controles como hardware de consola: teclas redondas, fader con perilla, LED.",
+      "Superficies impresas: esquinas rectas en hojas, campos y acciones."
+    ],
+    "rules": [
+      {
+        "name": "La Regla de las Tintas Vivas",
+        "body": "Las tintas se derivan de la portada en tiempo real: los tres tonos más presentes (saturación mínima 0.25, luz entre 0.12 y 0.92) se llevan a `hsl(h, 100%, 58%)`, y a 68% de luz entre 200° y 290° para que los azules se lean sobre negro. Si no hay portada o no hay tonos suficientes, vuelven los valores de reposo. Ningún componente usa un color de tinta fijo; siempre `var(--ink-n)`.",
+        "section": "colors"
+      },
+      {
+        "name": "La Regla de Tinta Plana",
+        "body": "Todo color es plano. Un degradado solo existe con cortes duros (`0 34%, 34% 67%`) para imitar bandas o rellenos impresos; nunca transiciones suaves, nunca vidrio ni desenfoque.",
+        "section": "colors"
+      },
+      {
+        "name": "La Regla de Una Zona de Color",
+        "body": "El titular es la única zona con varias tintas. Fuera de él, la tinta aparece en puntos pequeños y funcionales (hora, LED, tecla principal, filo de la hoja, foco) y el resto es hueso sobre negro.",
+        "section": "colors"
+      },
+      {
+        "name": "La Regla del Titular que Llena",
+        "body": "El tamaño del titular no se fija en CSS: se busca el mayor que entra en el alto y ancho libres del afiche, bajando de 3 en 3 px, y se vuelve a medir al cambiar tamaño y cuando la fuente termina de cargar.",
+        "section": "typography"
+      },
+      {
+        "name": "La Regla de Dos Voces",
+        "body": "Bungee solo para titular, hora y títulos de hoja o formulario. Toda la interfaz restante es Atkinson Hyperlegible, en 400 o 700, sin otros pesos.",
+        "section": "typography"
+      },
+      {
+        "name": "La Regla de la Noche",
+        "body": "Entre las 23:00 y las 6:00 todo el panel baja a opacidad 0.34 y la tecla de reproducir pierde su relleno de tinta (queda en contorno). Nada nuevo debe sumar luz de noche.",
+        "section": "layout"
+      },
+      {
+        "name": "La Regla de la Plancha",
+        "body": "Las superficies son papel impreso: sin sombra en reposo, sin vidrio, sin desenfoque. Solo una capa modal puede proyectar sombra.",
+        "section": "elevation"
+      },
+      {
+        "name": "La Regla Consola o Imprenta",
+        "body": "Si se presiona como un aparato (tecla, interruptor, indicador), es redondo. Si se lee o se llena como papel (hoja, campo, acción de texto), es recto.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do tomar todo color de acento de `var(--ink-1)`, `var(--ink-2)` o `var(--ink-3)`, porque cambian con cada portada.",
+      "Do mantener el texto de la interfaz en blanco hueso (#f2ede3) o hueso gastado (#b8b1a6) sobre negro (#0c0b0e).",
+      "Do usar Bungee solo para el titular, la hora y títulos de hoja; Atkinson Hyperlegible 400/700 para el resto.",
+      "Do dibujar bandas y rellenos con cortes duros de degradado, como tinta plana.",
+      "Do hacer redondos los controles de consola y rectos los elementos impresos.",
+      "Do usar el mismo foco en todo control: contorno de 3px en tinta 1 separado 3px.",
+      "Do dejar que la noche (23:00 a 6:00) baje todo a opacidad 0.34; cualquier superficie nueva debe atenuarse igual."
+    ],
+    "donts": [
+      "Don't usar portada desenfocada de fondo, vidrio, transparencias decorativas ni controles grises de streaming.",
+      "Don't usar degradados suaves; el único texto con degradado es el titular en bandas de corte duro.",
+      "Don't fijar colores de tinta en hex dentro de un componente.",
+      "Don't repartir varias tintas fuera del titular; fuera de él, una tinta por elemento y en puntos pequeños.",
+      "Don't poner sombras en superficies en reposo; solo la hoja modal proyecta sombra.",
+      "Don't usar el coral de aviso como relleno ni como borde; es solo texto."
+    ]
+  }
+}
