@@ -72,7 +72,13 @@ class ModeRequest(BaseModel):
 
 def _state(device: Device) -> dict[str, object]:
     st = device.status()
-    return {"id": device.id, "name": device.name, "online": st.online, "on": st.on}
+    return {
+        "id": device.id,
+        "name": device.name,
+        "online": st.online,
+        "on": st.on,
+        "timer": st.timer,
+    }
 
 
 def _page(body: str) -> str:

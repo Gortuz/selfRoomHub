@@ -1,6 +1,8 @@
 """Adaptador Tuya / Smart Life con tinytuya."""
 
 import threading
+import time
+from collections.abc import Callable
 from typing import Any
 
 import tinytuya
@@ -20,6 +22,7 @@ class TuyaDevice(Device):
         switch_dp: int = 1,
         timer_dp: int = 9,
         client: Any = None,
+        clock: Callable[[], float] = time.monotonic,
     ):
         self.id = id
         self.name = name
@@ -30,6 +33,9 @@ class TuyaDevice(Device):
         self.switch_dp = switch_dp
         self.timer_dp = timer_dp
         self._client = client  # inyectable para tests
+        self._clock = clock
+        # El enchufe informa el valor programado pero no lo descuenta: se guarda cuándo termina
+        self._timer_end: float | None = None
         # tinytuya no es seguro entre hilos y FastAPI atiende peticiones en paralelo
         self._lock = threading.Lock()
 
@@ -68,6 +74,16 @@ class TuyaDevice(Device):
         except OSError as e:
             raise DeviceError(f"{self.id}: {e}") from e
         self._raise_on_error(result)
+        self._timer_end = self._clock() + seconds if seconds > 0 else None
+
+    def _timer_left(self, reported: Any) -> int | None:
+        # 0 en el enchufe: no hay temporizador (se cumplió o lo cancelaron)
+        if not isinstance(reported, int) or reported <= 0:
+            self._timer_end = None
+            return None
+        if self._timer_end is None:  # programado desde otra app: cuenta desde ahora
+            self._timer_end = self._clock() + reported
+        return max(0, round(self._timer_end - self._clock()))
 
     def status(self) -> DeviceStatus:
         try:
@@ -75,6 +91,7 @@ class TuyaDevice(Device):
                 result = self.client.status()
             self._raise_on_error(result)
             value = result["dps"][str(self.switch_dp)]
-        except (DeviceError, KeyError, TypeError, OSError):
+            reported = result["dps"].get(str(self.timer_dp))
+        except (DeviceError, KeyError, TypeError, OSError, AttributeError):
             return DeviceStatus(online=False, on=None)
-        return DeviceStatus(online=True, on=bool(value))
+        return DeviceStatus(online=True, on=bool(value), timer=self._timer_left(reported))

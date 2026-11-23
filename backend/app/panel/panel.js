@@ -95,6 +95,7 @@
     btAvailable: true,  // Shizuku activo
     battery: null,      // última lectura de /battery (con "advice")
     mode: null,         // "day" | "night" según /mode
+    timerEnd: null,     // instante local (ms) en que se apagan los parlantes
     offline: false,
     playing: false,
     volume: null
@@ -418,7 +419,19 @@
   function refreshDevices() {
     if (!token) return;
     api("GET", "/devices/" + DEVICE)
-      .then(function (d) { state.power = d.online ? d.on : null; state.offline = false; })
+      .then(function (d) {
+        var wasOn = state.power;
+        state.power = d.online ? d.on : null;
+        state.offline = false;
+        state.timerEnd = d.on && typeof d.timer === "number" ? Date.now() + d.timer * 1000 : null;
+        // Parlantes recién apagados (p. ej. por el temporizador): soltar la pantalla ya,
+        // salvo que alguien la haya tocado hace un momento
+        if (wasOn === true && state.power === false && Date.now() - lastTouch > 10000) {
+          lastTouch = 0;
+          updateAwake();
+        }
+        renderTimer();
+      })
       .catch(function (e) { if (!e.status) state.offline = true; else state.power = null; })
       .then(render);
   }
@@ -433,6 +446,34 @@
       .catch(function () { state.audioHere = null; })
       .then(render);
   }
+
+  // --- Apagado programado ---
+  var MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 2.5a9.5 9.5 0 1 0 7 15.9A8 8 0 0 1 14.5 2.5z"/></svg>';
+  function timerMinutes() {
+    if (!state.timerEnd) return null;
+    return Math.max(0, Math.ceil((state.timerEnd - Date.now()) / 60000));
+  }
+  function renderTimer() {
+    var m = timerMinutes(), text = m === null ? "" : m + " min";
+    $("sleep-timer").innerHTML = m === null ? "" : MOON + text;
+    $("sleep-timer").setAttribute("aria-label", m === null ? "" : "Los parlantes se apagan en " + text);
+    $("sleep-timer").hidden = m === null;
+    $("sky-timer").textContent = m === null ? "" : "Los parlantes se apagan en " + text;
+    $("sky-timer").hidden = m === null;
+    $("fact-timer-row").hidden = m === null;
+    $("fact-timer").textContent = text;
+    $("act-timer").hidden = m === null;
+  }
+  setInterval(renderTimer, 15000);
+
+  $("act-timer").addEventListener("click", function () {
+    var btn = $("act-timer");
+    busy(btn, true);
+    api("POST", "/devices/" + DEVICE + "/timer", { minutes: 0 })
+      .then(function () { state.timerEnd = null; renderTimer(); })
+      .catch(function (e) { sheetMessage("No se pudo cancelar el temporizador: " + e.message); })
+      .then(function () { busy(btn, false); renderSheet(); });
+  });
 
   // --- Batería del servidor ---
   function renderBattery(el, b) {

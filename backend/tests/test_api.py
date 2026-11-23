@@ -13,7 +13,7 @@ def test_auth(client):
 
 def test_lista_y_detalle(client):
     data = client.get("/devices", headers=HEADERS).json()
-    assert {"id": "lamp", "name": "Lámpara", "online": True, "on": False} in data
+    assert {"id": "lamp", "name": "Lámpara", "online": True, "on": False, "timer": None} in data
     one = client.get("/devices/lamp", headers=HEADERS).json()
     assert one["id"] == "lamp"
 
@@ -71,3 +71,8 @@ def test_log_de_acceso_tacha_secretos():
     rec.args = ("127.0.0.1:1", "GET", "/spotify/callback?code=SECRETO&state=s1", "1.1", 200)
     RedactSecrets().filter(rec)
     assert "SECRETO" not in rec.getMessage() and "s1" not in rec.getMessage()
+
+
+def test_devices_incluye_temporizador(client):
+    r = client.get("/devices/lamp", headers=HEADERS).json()
+    assert "timer" in r and r["timer"] is None

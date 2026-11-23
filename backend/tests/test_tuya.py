@@ -124,3 +124,51 @@ def test_set_timer_errores_a_device_error():
 
     with pytest.raises(DeviceError):
         make(Boom()).set_timer(60)
+
+
+class CountdownClient(TimerClient):
+    """El enchufe reporta en el dp 9 el valor programado, sin descontarlo."""
+
+    def __init__(self):
+        super().__init__()
+        self.dps = {"1": True, "9": 0}
+
+    def set_value(self, index, value):
+        self.dps[str(index)] = value
+        return super().set_value(index, value)
+
+    def status(self):
+        return {"dps": dict(self.dps)}
+
+
+def test_status_calcula_lo_que_falta_del_temporizador():
+    now = [1000.0]
+    c = CountdownClient()
+    d = TuyaDevice("t", "T", "d", "1.2.3.4", "k", client=c, clock=lambda: now[0])
+    assert d.status().timer is None
+    d.set_timer(2700)
+    now[0] += 600
+    assert d.status().timer == 2100
+    d.set_timer(0)
+    assert d.status().timer is None
+
+
+def test_temporizador_programado_desde_fuera_y_cumplido():
+    now = [0.0]
+    c = CountdownClient()
+    c.dps["9"] = 300  # lo programó otra app (Smart Life)
+    d = TuyaDevice("t", "T", "d", "1.2.3.4", "k", client=c, clock=lambda: now[0])
+    assert d.status().timer == 300
+    now[0] += 100
+    assert d.status().timer == 200
+    c.dps["9"] = 0  # se cumplió: el enchufe vuelve a 0
+    assert d.status().timer is None
+
+
+def test_temporizador_no_baja_de_cero():
+    now = [0.0]
+    c = CountdownClient()
+    d = TuyaDevice("t", "T", "d", "1.2.3.4", "k", client=c, clock=lambda: now[0])
+    d.set_timer(60)
+    now[0] += 90  # el enchufe aún no informó 0
+    assert d.status().timer == 0

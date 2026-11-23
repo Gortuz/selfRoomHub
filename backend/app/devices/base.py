@@ -8,6 +8,7 @@ from dataclasses import dataclass
 class DeviceStatus:
     online: bool
     on: bool | None
+    timer: int | None = None  # segundos que faltan para el apagado programado
 
 
 class DeviceError(Exception):

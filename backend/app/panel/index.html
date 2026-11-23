@@ -35,6 +35,7 @@
         <time id="clock" class="clock" title="Mantén presionado para abrir Ajustes">--:--</time>
         <p id="date" class="date"></p>
         <span class="battery" id="battery" hidden></span>
+        <span class="sleep-timer" id="sleep-timer" hidden></span>
       </header>
 
       <div class="poster" id="track" aria-live="polite">
@@ -86,6 +87,7 @@
       <time id="sky-clock" class="sky-clock">--:--</time>
       <p id="sky-date" class="sky-date"></p>
       <span class="battery battery-sky" id="sky-battery" hidden></span>
+      <p class="sky-timer" id="sky-timer" hidden></p>
     </div>
 
     <aside class="channel channel-light" id="light" aria-label="Brillo" hidden>
@@ -117,11 +119,13 @@
       <dl class="facts">
         <div><dt>Corriente</dt><dd id="fact-power">…</dd></div>
         <div><dt>Audio</dt><dd id="fact-audio">…</dd></div>
+        <div id="fact-timer-row" hidden><dt>Temporizador</dt><dd id="fact-timer">…</dd></div>
       </dl>
       <p id="sheet-message" class="sheet-message" role="status" hidden></p>
       <div class="sheet-actions">
         <button id="act-power" class="action action-primary" type="button">Apagar parlantes</button>
         <button id="act-audio" class="action" type="button" hidden>Traer el audio aquí</button>
+        <button id="act-timer" class="action" type="button" hidden>Cancelar temporizador</button>
         <button id="act-close" class="action action-quiet" type="button">Cerrar</button>
       </div>
     </div>
