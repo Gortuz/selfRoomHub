@@ -264,3 +264,56 @@ def test_rish_sin_tty_responde_por_stderr():
 
     c = BluetoothController(runner=run, rish="/x/rish", dex="/x/b.dex")
     assert c.is_connected(ADDR) is True
+
+
+def test_available_true_cuando_rish_responde():
+    def run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="ok\n")
+
+    assert BluetoothController(runner=run, rish="/x/rish").available() is True
+
+
+def test_available_false_si_rish_falla_o_no_existe():
+    def falla(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="Shizuku not running")
+
+    def no_existe(cmd, **kwargs):
+        raise FileNotFoundError
+
+    assert BluetoothController(runner=falla, rish="/x/rish").available() is False
+    assert BluetoothController(runner=no_existe, rish="/x/rish").available() is False
+
+
+def test_health_informa_bluetooth(ctl):
+    ctl.up = False
+    ctl.available = lambda: ctl.up
+    client = TestClient(
+        create_app(
+            devices={},
+            token=TOKEN,
+            bluetooth_targets={"spk": BluetoothTarget("spk", "Parlantes", ADDR)},
+            bluetooth_controller=ctl,
+        )
+    )
+    assert client.get("/health").json() == {"status": "ok", "bluetooth": "unavailable"}
+
+
+def test_health_cachea_la_consulta(ctl):
+    calls = []
+    ctl.available = lambda: calls.append(1) or True
+    client = TestClient(
+        create_app(
+            devices={},
+            token=TOKEN,
+            bluetooth_targets={"spk": BluetoothTarget("spk", "Parlantes", ADDR)},
+            bluetooth_controller=ctl,
+        )
+    )
+    for _ in range(3):
+        assert client.get("/health").json()["bluetooth"] == "ok"
+    assert len(calls) == 1
+
+
+def test_health_sin_bluetooth_no_lo_menciona():
+    client = TestClient(create_app(devices={}, token=TOKEN))
+    assert client.get("/health").json() == {"status": "ok"}

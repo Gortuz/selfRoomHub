@@ -82,6 +82,16 @@ class BluetoothController:
         if code != "0":
             raise BluetoothError(f"{action} falló (código {code})")
 
+    def available(self) -> bool:
+        """True si rish responde (Shizuku activo). No lanza excepciones."""
+        cmd = ["env", "-u", "LD_LIBRARY_PATH", "-u", "LD_PRELOAD", self._rish, "-c", "echo ok"]
+        try:
+            res = self._run(cmd, capture_output=True, text=True, timeout=TIMEOUT_S)
+        except (subprocess.TimeoutExpired, OSError):
+            return False
+        output = (res.stdout or "") + (res.stderr or "")
+        return res.returncode == 0 and output.strip() == "ok"
+
     def connect(self, address: str) -> None:
         self._action("connect", address)
 

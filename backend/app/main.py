@@ -17,6 +17,7 @@ from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
 
 BT_WAIT_POLLS = 8
+HEALTH_CACHE_S = 60
 
 
 class PowerRequest(BaseModel):
@@ -88,11 +89,23 @@ def create_app(
             connected = None
         return {"id": target.id, "name": target.name, "connected": connected}
 
+    # Consultar rish tarda ~1 s: el estado del Bluetooth se reutiliza un rato
+    bt_health: dict[str, float | bool] = {"at": float("-inf"), "ok": False}
+
+    def bluetooth_available() -> bool:
+        now = time.monotonic()
+        if now - bt_health["at"] > HEALTH_CACHE_S:
+            bt_health.update(at=now, ok=bt.available())
+        return bool(bt_health["ok"])
+
     app = FastAPI(title="selfRoomHub")
 
     @app.get("/health")
     def health() -> dict[str, str]:
-        return {"status": "ok"}
+        result = {"status": "ok"}
+        if bt_targets:
+            result["bluetooth"] = "ok" if bluetooth_available() else "unavailable"
+        return result
 
     @app.get("/devices", dependencies=[Depends(auth)])
     def list_devices() -> list[dict[str, object]]:

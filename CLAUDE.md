@@ -65,7 +65,7 @@ NFC / Tasker        ──┘        │
 
 ## Endpoints
 
-- `GET /health`
+- `GET /health` (incluye `bluetooth: ok|unavailable` si hay Bluetooth configurado; `unavailable` = Shizuku inactivo)
 - `GET /devices`
 - `POST /devices/{id}/power` con body `{"on": true|false}`
 - `POST /devices/{id}/toggle` (invierte el estado; útil para un solo sticker NFC o atajo)
