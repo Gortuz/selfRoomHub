@@ -254,6 +254,7 @@ html, body {
 }
 
 .notice { margin: 10px 0 0; font-size: 15px; color: var(--alert); }
+.notice.calm { color: var(--bone-soft); }
 
 /* Menú de parlantes: hoja de cartel que sube desde abajo; nada se apaga sin confirmar */
 .sheet-backdrop {

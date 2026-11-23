@@ -4,6 +4,8 @@ Arranque:
     uv run uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000
 """
 
+import asyncio
+import contextlib
 import secrets
 import time
 from pathlib import Path
@@ -17,6 +19,14 @@ from pydantic import BaseModel
 
 from app import config
 from app.battery import BatteryError, BatteryMonitor
+from app.battery_alerts import (
+    Alert,
+    BatteryWatcher,
+    Notifier,
+    advice,
+    notifier_from_env,
+    thresholds_from_env,
+)
 from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
 from app.lyrics import LyricsClient, LyricsFetcher, LyricsUnavailable
@@ -26,6 +36,7 @@ from app.now_playing import ArtError, NowPlaying, NowPlayingUpdate
 BT_WAIT_POLLS = 8
 HEALTH_CACHE_S = 60
 MAX_WAIT_S = 30
+BATTERY_WATCH_EVERY_S = 60
 NO_LYRICS = "Sin letra para esta canción"
 PANEL_DIR = Path(__file__).parent / "panel"
 
@@ -55,6 +66,8 @@ def create_app(
     bluetooth_controller: BluetoothController | None = None,
     lyrics_fetcher: LyricsFetcher | None = None,
     battery: BatteryMonitor | None = None,
+    notifier: Notifier | None = None,
+    battery_watch: bool | None = None,
 ) -> FastAPI:
     # Sin inyección se arranca de verdad: se lee .env y la configuración
     from_config = devices is None or token is None
@@ -124,8 +137,37 @@ def create_app(
     lyrics = LyricsClient(lyrics_fetcher)
 
     battery_monitor = battery or BatteryMonitor()
+    thresholds = thresholds_from_env()
+    if notifier is None and from_config:
+        notifier = notifier_from_env()
+    # El vigilante solo corre al arrancar desde la configuración real
+    watch = from_config if battery_watch is None else battery_watch
+    watcher = BatteryWatcher(thresholds, notifier)
 
-    app = FastAPI(title="selfRoomHub")
+    async def watch_battery() -> None:
+        while True:
+            try:
+                reading = await asyncio.to_thread(battery_monitor.read)
+                alerts = watcher.evaluate(reading)
+                if notifier is not None:
+                    for alert in alerts:
+                        await asyncio.to_thread(notifier.send, alert)
+            except BatteryError:
+                pass  # se reintenta en el siguiente ciclo
+            await asyncio.sleep(BATTERY_WATCH_EVERY_S)
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_: FastAPI):
+        task = asyncio.create_task(watch_battery()) if watch else None
+        try:
+            yield
+        finally:
+            if task is not None:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+
+    app = FastAPI(title="selfRoomHub", lifespan=lifespan)
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -137,9 +179,28 @@ def create_app(
     @app.get("/battery", dependencies=[Depends(auth)])
     def read_battery() -> dict[str, object]:
         try:
-            return battery_monitor.read()
+            reading = battery_monitor.read()
         except BatteryError as e:
             raise HTTPException(status_code=503, detail=str(e)) from e
+        return {**reading, "advice": advice(reading, thresholds)}
+
+    @app.post("/battery/test-alert", dependencies=[Depends(auth)])
+    def battery_test_alert() -> dict[str, str]:
+        if notifier is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Avisos externos desactivados: falta SELFROOMHUB_NTFY_TOPIC",
+            )
+        test = Alert(
+            "test",
+            "Prueba de avisos",
+            "Si ves esto, los avisos de batería funcionan.",
+            "default",
+            ["white_check_mark"],
+        )
+        if not notifier.send(test):
+            raise HTTPException(status_code=502, detail="No se pudo enviar el aviso")
+        return {"status": "sent"}
 
     @app.get("/devices", dependencies=[Depends(auth)])
     def list_devices() -> list[dict[str, object]]:

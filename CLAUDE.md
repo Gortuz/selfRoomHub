@@ -66,6 +66,7 @@ NFC / Tasker        ──┘        │
 ## Endpoints
 
 - `GET /battery` (batería del servidor vía Termux:API; 503 si no está disponible)
+- `POST /battery/test-alert` (envía un aviso de prueba por ntfy; 409 si no hay topic, 502 si falla)
 - `GET /health` (incluye `bluetooth: ok|unavailable` si hay Bluetooth configurado; `unavailable` = Shizuku inactivo)
 - `GET /devices`
 - `POST /devices/{id}/power` con body `{"on": true|false}`

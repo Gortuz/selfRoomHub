@@ -91,6 +91,7 @@
     power: null,        // true / false / null (sin respuesta)
     audioHere: null,    // el servidor tiene el parlante Bluetooth
     btAvailable: true,  // Shizuku activo
+    battery: null,      // última lectura de /battery (con "advice")
     offline: false,
     playing: false,
     volume: null
@@ -373,12 +374,17 @@
   function render() {
     $("speakers").setAttribute("aria-pressed", state.power ? "true" : "false");
 
-    var notice = "";
+    var notice = "", calm = false, b = state.battery;
+    var advice = b && b.advice;
     if (state.offline) notice = "No hay conexión con el servidor. Reintentando…";
+    else if (advice === "critical") notice = "Batería crítica (" + b.percentage + " %): conecta el cargador ya.";
     else if (state.power === null) notice = "Los parlantes no responden: revisa el enchufe y el Wi-Fi.";
+    else if (advice === "connect") notice = "Batería al " + b.percentage + " %: conecta el cargador.";
+    else if (advice === "disconnect") { notice = "Batería al " + b.percentage + " %: ya puedes desconectar el cargador."; calm = true; }
     else if (!state.btAvailable) notice = "Cambio de audio desactivado: abre Shizuku y toca Start.";
     $("notice").textContent = notice;
     $("notice").hidden = !notice;
+    $("notice").classList.toggle("calm", calm);
 
     if (!$("sheet").hidden) renderSheet();
   }
@@ -445,8 +451,8 @@
   function refreshBattery() {
     if (!token) return;
     api("GET", "/battery")
-      .then(function (b) { renderBattery($("battery"), b); renderBattery($("sky-battery"), b); })
-      .catch(function () { renderBattery($("battery"), null); renderBattery($("sky-battery"), null); });
+      .then(function (b) { state.battery = b; renderBattery($("battery"), b); renderBattery($("sky-battery"), b); render(); })
+      .catch(function () { state.battery = null; renderBattery($("battery"), null); renderBattery($("sky-battery"), null); render(); });
   }
 
   function refreshHealth() {
