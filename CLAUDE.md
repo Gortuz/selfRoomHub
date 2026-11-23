@@ -74,6 +74,8 @@ NFC / Tasker        ──┘        │
 - `POST /bluetooth/{id}/connect`: conecta el servidor a ese dispositivo Bluetooth
 - `POST /bluetooth/{id}/disconnect`: desconecta el servidor de ese dispositivo Bluetooth
 - `GET /panel/`: panel web estático (sin auth; el token va en el fragmento de la URL)
+- `POST /media/command` (encola orden de reproducción o volumen para la app kiosco)
+- `GET /media/commands` (long-poll de órdenes vigentes, `?after=&wait=`)
 - `GET /now-playing`: qué suena en el servidor (JSON con `art_url`)
 - `PUT /now-playing`: lo publica la app kiosco (título, artista, portada en base64 ≤ 2 MB)
 - `GET /now-playing/art`: portada actual (sin auth; 404 si no hay)

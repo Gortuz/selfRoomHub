@@ -68,12 +68,13 @@ html, body {
 
 .clock {
   display: block;
+  margin: 0;
   font-family: var(--display);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 0.86;
   letter-spacing: -0.01em;
-  font-size: clamp(64px, 30vh, 220px);
+  font-size: clamp(56px, 24vh, 200px);
 }
 .idle .clock { font-size: clamp(96px, 46vh, 380px); }
 
@@ -91,42 +92,127 @@ html, body {
 .artist { color: var(--ink-soft); font-size: clamp(14px, 4vh, 24px); line-height: 1.35; }
 .track.paused .title::after { content: " · en pausa"; font-weight: 400; color: var(--ink-soft); }
 
-/* Controles como frente de equipo de audio: interruptor con LED, sin tarjetas. */
-.controls { display: flex; flex-wrap: wrap; margin-top: clamp(12px, 6vh, 40px); margin-left: -6px; }
-.switch {
-  display: flex;
+.top { display: flex; align-items: flex-start; justify-content: space-between; }
+
+/* Controles con vocabulario de equipo de audio: LED, teclas de transporte y fader. */
+.chip {
+  display: inline-flex;
   align-items: center;
-  margin: 6px;
-  padding: 10px 18px 10px 14px;
-  min-height: 52px;
+  flex: none;
+  margin-left: 16px;
+  padding: 10px 16px 10px 14px;
+  min-height: 44px;
   border: 1px solid var(--ink-faint);
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.2);
   color: var(--ink);
   font: inherit;
-  text-align: left;
+  font-weight: 700;
+  font-size: 16px;
   cursor: pointer;
 }
-.switch:active { background: rgba(0, 0, 0, 0.32); }
-.switch:focus-visible { outline: 2px solid var(--led-on); outline-offset: 3px; }
-.switch[disabled] { opacity: 0.5; cursor: default; }
-/* Activo y sin acción pendiente (p. ej. el audio ya suena aquí): se ve encendido, no apagado */
-.switch[disabled][aria-pressed="true"] { opacity: 1; }
-.switch.busy .led { animation: blink 0.8s steps(2, start) infinite; }
+.chip:active { background: rgba(0, 0, 0, 0.34); }
 
 .led {
   flex: none;
   width: 12px; height: 12px;
-  margin-right: 12px;
+  margin-right: 10px;
   border-radius: 50%;
   background: var(--led-off);
   transition: background-color 0.2s, box-shadow 0.2s;
 }
-.switch[aria-pressed="true"] .led { background: var(--led-on); box-shadow: 0 0 10px 2px rgba(255, 181, 71, 0.55); }
+[aria-pressed="true"] > .led, .led.on { background: var(--led-on); box-shadow: 0 0 10px 2px rgba(255, 181, 71, 0.55); }
+.busy .led { animation: blink 0.8s steps(2, start) infinite; }
 
-.switch-text { display: flex; flex-direction: column; line-height: 1.2; }
-.switch-name { font-weight: 700; font-size: 16px; }
-.switch-state { font-size: 14px; color: var(--ink-soft); }
+.transport { display: flex; align-items: center; margin-top: clamp(10px, 4.5vh, 32px); }
+.key {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none;
+  width: 48px; height: 48px;
+  margin-right: 10px;
+  padding: 0;
+  border: 1px solid var(--ink-faint);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--ink);
+  cursor: pointer;
+}
+.key svg { width: 20px; height: 20px; fill: currentColor; }
+.key:active { background: rgba(0, 0, 0, 0.36); }
+.key-main { width: 58px; height: 58px; background: var(--ink); color: var(--night); border-color: var(--ink); }
+.key-main svg { width: 24px; height: 24px; }
+.key-main:active { background: var(--ink-soft); }
+.key-main .icon-pause { display: none; }
+.key-main.playing .icon-play { display: none; }
+.key-main.playing .icon-pause { display: block; }
+
+/* Fader de consola: riel fino y tapa rectangular. */
+.fader { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 120px; max-width: 280px; margin-left: 8px; }
+.fader-label { font-size: 14px; color: var(--ink-soft); margin-bottom: 4px; }
+.fader-label output { color: var(--ink); font-variant-numeric: tabular-nums; }
+.fader input {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 36px; margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.fader input::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--ink-faint); }
+.fader input::-moz-range-track { height: 4px; border-radius: 2px; background: var(--ink-faint); }
+.fader input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 32px; margin-top: -14px;
+  border-radius: 3px;
+  background: linear-gradient(var(--ink) 0 46%, var(--night) 46% 54%, var(--ink) 54%);
+  border: 0;
+}
+.fader input::-moz-range-thumb {
+  width: 18px; height: 32px; border-radius: 3px; border: 0;
+  background: linear-gradient(var(--ink) 0 46%, var(--night) 46% 54%, var(--ink) 54%);
+}
+
+.key:focus-visible, .chip:focus-visible, .action:focus-visible, .fader input:focus-visible {
+  outline: 2px solid var(--led-on); outline-offset: 3px;
+}
+
+/* Menú de parlantes: hoja que sube desde abajo; nada se apaga sin confirmar. */
+.sheet-backdrop {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+.sheet {
+  width: 100%; max-width: 520px;
+  padding: 22px 24px 24px;
+  border-radius: 14px 14px 0 0;
+  background: #222d39;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.4);
+  animation: rise 0.22s ease-out;
+}
+.sheet-title { margin: 0 0 12px; font-size: 22px; }
+.facts { margin: 0 0 16px; }
+.facts div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--ink-faint); font-size: 17px; }
+.facts dt { color: var(--ink-soft); }
+.facts dd { margin: 0; display: flex; align-items: center; text-align: right; }
+.facts dd .led { margin-right: 8px; }
+.sheet-message { margin: 0 0 14px; color: var(--alert); font-size: 15px; }
+.sheet-actions { display: flex; flex-wrap: wrap; margin: -5px; }
+.action {
+  flex: 1 1 auto;
+  margin: 5px;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid var(--ink-faint);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit; font-size: 16px; font-weight: 700;
+  cursor: pointer;
+}
+.action-primary { background: var(--ink); color: var(--night); border-color: var(--ink); }
+.action-quiet { font-weight: 400; color: var(--ink-soft); }
+.action[disabled] { opacity: 0.5; cursor: default; }
+.action.busy { opacity: 0.7; }
 
 .notice { margin: 14px 0 0; font-size: 15px; color: var(--alert); max-width: 60ch; }
 
@@ -152,8 +238,9 @@ body.night .panel, body.night .backdrop { opacity: 0.42; }
 }
 
 @keyframes blink { to { opacity: 0.3; } }
+@keyframes rise { from { transform: translateY(24px); opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) {
   .backdrop, .led { transition: none; }
-  .switch.busy .led { animation: none; }
+  .busy .led, .sheet { animation: none; }
 }

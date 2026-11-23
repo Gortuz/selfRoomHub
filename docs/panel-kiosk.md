@@ -47,6 +47,15 @@ Opcionalmente `--es base_url http://host:puerto` (por defecto `http://127.0.0.1:
 
 Nota: el tráfico HTTP plano (cleartext) está permitido en general, porque el backend no usa TLS y Android no permite restringir por rango de red en `network_security_config`. Úsalo solo en localhost / LAN / Tailscale.
 
+## Controles de reproducción y volumen
+
+El servicio de medios consulta `GET /media/commands` (long-poll) y ejecuta las órdenes sobre la sesión de medios activa:
+
+- `toggle`: pausa si suena, si no reanuda. `play`, `pause`, `next`, `previous`: actúan sobre la misma sesión que se publica en now-playing. Sin sesión activa, `play`/`toggle` envían la tecla multimedia PLAY para que la última app de música reanude.
+- `volume`: fija el volumen de **medios del teléfono** (STREAM_MUSIC) en porcentaje, sin mostrar la barra del sistema.
+
+El volumen actual se informa en `volume` en cada `PUT /now-playing` y, con un retraso de ~300 ms, al cambiar (también con botones físicos y sin música). Requiere el mismo acceso a notificaciones que now-playing. Ante errores de red reintenta cada 3 s; con 401 (token mal configurado), cada 30 s.
+
 ## Arrancar tras reiniciar
 
 Elige la app como pantalla de inicio: Ajustes > Apps > Apps predeterminadas > App de inicio > selfRoomHub Panel (o pulsa Inicio y elige "Siempre"). Al reiniciar, Android la abre sola. Termux:Boot arranca el backend; la app reintenta hasta que responda.

@@ -1,22 +1,31 @@
 package dev.selfroomhub.panel
 
+import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
+import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.util.Base64
 import android.util.Log
+import android.view.KeyEvent
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import java.util.concurrent.Executors
+import kotlin.math.roundToInt
 
 /** Publica en el backend lo que suena en el telefono (PUT /now-playing). */
 class MediaListenerService : NotificationListenerService() {
@@ -29,6 +38,21 @@ class MediaListenerService : NotificationListenerService() {
     private var current: MediaController? = null
     private var lastArtHash: String? = null
     private var connected = false
+
+    private lateinit var audio: AudioManager
+    @Volatile private var commandThread: Thread? = null
+    @Volatile private var commandConn: HttpURLConnection? = null
+    private var lastCommandId = 0L
+    private var volumeReceiverRegistered = false
+
+    private val volumeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.getIntExtra(EXTRA_STREAM_TYPE, -1) != AudioManager.STREAM_MUSIC) return
+            // Debounce propio: no pisa el de metadata.
+            main.removeCallbacks(sendRunnable)
+            main.postDelayed(sendRunnable, 300)
+        }
+    }
 
     private val sessionsListener =
         MediaSessionManager.OnActiveSessionsChangedListener { list -> onSessions(list ?: emptyList()) }
@@ -54,6 +78,7 @@ class MediaListenerService : NotificationListenerService() {
     override fun onListenerConnected() {
         connected = true
         manager = getSystemService(MediaSessionManager::class.java)
+        audio = getSystemService(AudioManager::class.java)
         component = ComponentName(this, MediaListenerService::class.java)
         try {
             manager.addOnActiveSessionsChangedListener(sessionsListener, component, main)
@@ -61,6 +86,8 @@ class MediaListenerService : NotificationListenerService() {
             Log.w(TAG, "sin acceso a notificaciones", e)
             return
         }
+        registerVolume()
+        startCommands()
         refresh()
         main.removeCallbacks(periodic)
         main.postDelayed(periodic, 60_000)
@@ -68,12 +95,16 @@ class MediaListenerService : NotificationListenerService() {
 
     override fun onListenerDisconnected() {
         connected = false
+        stopCommands()
+        unregisterVolume()
         release()
         runCatching { manager.removeOnActiveSessionsChangedListener(sessionsListener) }
         main.removeCallbacksAndMessages(null)
     }
 
     override fun onDestroy() {
+        stopCommands()
+        unregisterVolume()
         release()
         main.removeCallbacksAndMessages(null)
         io.shutdown()
@@ -122,6 +153,7 @@ class MediaListenerService : NotificationListenerService() {
         if (!connected) return
         val c = current
         val json = JSONObject()
+        json.put("volume", volumePercent())
         if (c == null) {
             json.put("playing", false)
             lastArtHash = null
@@ -141,6 +173,140 @@ class MediaListenerService : NotificationListenerService() {
                 // Que el siguiente envio vuelva a incluir la portada.
                 if (hash != null && lastArtHash == hash) lastArtHash = null
             }
+        }
+    }
+
+    private fun volumePercent(): Int {
+        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        return (audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100f / max).roundToInt()
+    }
+
+    private fun registerVolume() {
+        if (volumeReceiverRegistered) return
+        val filter = IntentFilter(VOLUME_CHANGED_ACTION)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(volumeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(volumeReceiver, filter)
+        }
+        volumeReceiverRegistered = true
+    }
+
+    private fun unregisterVolume() {
+        if (!volumeReceiverRegistered) return
+        runCatching { unregisterReceiver(volumeReceiver) }
+        volumeReceiverRegistered = false
+    }
+
+    // --- Ordenes de reproduccion (long-poll a GET /media/commands) ---
+
+    private fun startCommands() {
+        if (commandThread?.isAlive == true) return
+        val t = Thread({ commandLoop() }, "media-commands")
+        t.isDaemon = true
+        commandThread = t
+        t.start()
+    }
+
+    private fun stopCommands() {
+        val t = commandThread ?: return
+        commandThread = null
+        t.interrupt()
+        runCatching { commandConn?.disconnect() }
+    }
+
+    private fun commandLoop() {
+        val me = Thread.currentThread()
+        while (commandThread === me && !me.isInterrupted) {
+            var pause = 0L
+            try {
+                val token = Settings.token(this)
+                if (token == null) {
+                    pause = 30_000
+                } else {
+                    val conn = URL(
+                        Settings.baseUrl(this) + "/media/commands?after=$lastCommandId&wait=25"
+                    ).openConnection() as HttpURLConnection
+                    commandConn = conn
+                    try {
+                        conn.connectTimeout = 5000
+                        conn.readTimeout = 35000
+                        conn.setRequestProperty("Authorization", "Bearer $token")
+                        val code = conn.responseCode
+                        if (code == 401) {
+                            Log.w(TAG, "GET /media/commands -> 401 (token invalido)")
+                            pause = 30_000
+                        } else if (code !in 200..299) {
+                            Log.w(TAG, "GET /media/commands -> $code")
+                            pause = 3_000
+                        } else {
+                            val text = conn.inputStream.bufferedReader().use { it.readText() }
+                            handleCommands(JSONArray(text))
+                        }
+                    } finally {
+                        conn.disconnect()
+                    }
+                }
+            } catch (e: InterruptedException) {
+                return
+            } catch (e: Exception) {
+                if (commandThread !== me) return
+                Log.w(TAG, "GET /media/commands fallo: ${e.message}")
+                pause = 3_000
+            }
+            if (pause > 0) {
+                try {
+                    Thread.sleep(pause)
+                } catch (e: InterruptedException) {
+                    return
+                }
+            }
+        }
+    }
+
+    private fun handleCommands(arr: JSONArray) {
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            val id = o.optLong("id", 0)
+            if (id > lastCommandId) lastCommandId = id
+            val action = o.optString("action")
+            val value = if (o.isNull("value")) null else o.optDouble("value")
+            main.post {
+                try {
+                    execute(action, value)
+                } catch (e: Exception) {
+                    Log.w(TAG, "orden $action fallo", e)
+                }
+            }
+        }
+    }
+
+    /** Corre en el hilo principal. */
+    private fun execute(action: String, value: Double?) {
+        if (!connected) return
+        val tc = current?.transportControls
+        when (action) {
+            "toggle" -> if (isPlaying(current)) tc?.pause() else play(tc)
+            "play" -> play(tc)
+            "pause" -> tc?.pause()
+            "next" -> tc?.skipToNext()
+            "previous" -> tc?.skipToPrevious()
+            "volume" -> if (value != null) {
+                val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                val v = (value.coerceIn(0.0, 100.0) / 100.0 * max).roundToInt()
+                audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
+            }
+            else -> Log.w(TAG, "orden desconocida: $action")
+        }
+    }
+
+    private fun play(tc: MediaController.TransportControls?) {
+        if (tc != null) {
+            tc.play()
+        } else {
+            // Sin sesion activa: que la ultima app de musica reanude.
+            audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
+            audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY))
         }
     }
 
@@ -203,5 +369,7 @@ class MediaListenerService : NotificationListenerService() {
 
     private companion object {
         const val TAG = "MediaListener"
+        const val VOLUME_CHANGED_ACTION = "android.media.VOLUME_CHANGED_ACTION"
+        const val EXTRA_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE"
     }
 }

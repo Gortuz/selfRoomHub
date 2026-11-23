@@ -18,10 +18,12 @@ from pydantic import BaseModel
 from app import config
 from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
+from app.media import CommandQueue, MediaCommand
 from app.now_playing import ArtError, NowPlaying, NowPlayingUpdate
 
 BT_WAIT_POLLS = 8
 HEALTH_CACHE_S = 60
+MAX_WAIT_S = 30
 PANEL_DIR = Path(__file__).parent / "panel"
 
 
@@ -113,6 +115,7 @@ def create_app(
         return bool(bt_health["ok"])
 
     now_playing = NowPlaying()
+    media_queue = CommandQueue()
 
     app = FastAPI(title="selfRoomHub")
 
@@ -187,6 +190,16 @@ def create_app(
         except ArtError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
         return now_playing.to_json()
+
+    # async: el long-poll no ocupa hilos y la cola se toca solo desde el loop
+    @app.post("/media/command", status_code=202, dependencies=[Depends(auth)])
+    async def post_media_command(body: MediaCommand) -> dict[str, int]:
+        return {"id": media_queue.add(body)}
+
+    @app.get("/media/commands", dependencies=[Depends(auth)])
+    async def get_media_commands(after: int = 0, wait: float = 0) -> list[dict[str, object]]:
+        found = await media_queue.wait_after(after, min(max(wait, 0), MAX_WAIT_S))
+        return [c.to_json() for c in found]
 
     # La URL de la portada lleva versión (?v=), por eso se puede cachear un día
     @app.get("/now-playing/art")

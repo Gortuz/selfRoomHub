@@ -37,6 +37,7 @@ def test_initial_state(client: TestClient) -> None:
         "album": None,
         "app": None,
         "art_url": None,
+        "volume": None,
         "updated_at": None,
     }
 
@@ -140,3 +141,21 @@ def test_panel_no_queda_en_cache(client):
     r = client.get("/panel/")
     assert r.status_code == 200
     assert r.headers.get("cache-control") == "no-cache"
+
+
+def test_volume_saved_kept_and_not_cleared(client: TestClient) -> None:
+    r = client.put("/now-playing", headers=HEADERS, json=song(volume=40))
+    assert r.json()["volume"] == 40
+    # Sin volumen en el PUT se conserva
+    assert client.put("/now-playing", headers=HEADERS, json=song()).json()["volume"] == 40
+    # playing false no lo borra
+    r = client.put("/now-playing", headers=HEADERS, json={"playing": False})
+    assert r.json()["volume"] == 40
+    assert client.get("/now-playing", headers=HEADERS).json()["volume"] == 40
+    r = client.put("/now-playing", headers=HEADERS, json={"playing": False, "volume": 0})
+    assert r.json()["volume"] == 0
+
+
+def test_volume_out_of_range(client: TestClient) -> None:
+    r = client.put("/now-playing", headers=HEADERS, json=song(volume=101))
+    assert r.status_code == 422

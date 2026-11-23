@@ -6,7 +6,7 @@ import hashlib
 from dataclasses import dataclass
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 MAX_ART_BYTES = 2 * 1024 * 1024
 
@@ -22,6 +22,7 @@ class NowPlayingUpdate(BaseModel):
     album: str | None = None
     app: str | None = None
     art_base64: str | None = None
+    volume: int | None = Field(default=None, ge=0, le=100)
 
 
 def decode_art(data: str) -> tuple[bytes, str]:
@@ -50,6 +51,7 @@ class NowPlaying:
     app: str | None = None
     art: bytes | None = None
     art_type: str | None = None
+    volume: int | None = None
     updated_at: str | None = None
 
     def update(self, body: NowPlayingUpdate) -> None:
@@ -64,6 +66,9 @@ class NowPlaying:
             self.album, self.app = body.album, body.app
         else:
             self.title = self.artist = self.album = self.app = None
+        # Sin volumen en el PUT se conserva el último conocido
+        if body.volume is not None:
+            self.volume = body.volume
         self.playing = body.playing
         self.updated_at = datetime.now().astimezone().isoformat(timespec="seconds")
 
@@ -78,5 +83,6 @@ class NowPlaying:
             "album": self.album,
             "app": self.app,
             "art_url": art_url,
+            "volume": self.volume,
             "updated_at": self.updated_at,
         }

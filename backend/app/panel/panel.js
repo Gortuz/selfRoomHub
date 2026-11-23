@@ -23,18 +23,22 @@
   if (m && history.replaceState) history.replaceState(null, "", location.pathname);
   if (!token) { $("setup").hidden = false; }
 
-  function api(method, path) {
-    return fetch(path, { method: method, headers: { Authorization: "Bearer " + token } })
-      .then(function (r) {
-        if (!r.ok) {
-          return r.json().catch(function () { return {}; }).then(function (b) {
-            var err = new Error(b.detail || ("Error " + r.status));
-            err.status = r.status;
-            throw err;
-          });
-        }
-        return r.json();
-      });
+  function api(method, path, data) {
+    var opts = { method: method, headers: { Authorization: "Bearer " + token } };
+    if (data !== undefined) {
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(data);
+    }
+    return fetch(path, opts).then(function (r) {
+      if (!r.ok) {
+        return r.json().catch(function () { return {}; }).then(function (b) {
+          var err = new Error(typeof b.detail === "string" ? b.detail : "Error " + r.status);
+          err.status = r.status;
+          throw err;
+        });
+      }
+      return r.json();
+    });
   }
 
   // --- Reloj y fecha ---
@@ -51,6 +55,16 @@
     var h = now.getHours();
     body.classList.toggle("night", h >= NIGHT_FROM || h < NIGHT_TO);
   }
+
+  // --- Estado ---
+  var state = {
+    power: null,        // true / false / null (sin respuesta)
+    audioHere: null,    // el servidor tiene el parlante Bluetooth
+    btAvailable: true,  // Shizuku activo
+    offline: false,
+    playing: false,
+    volume: null
+  };
 
   // --- Lo que suena ---
   var lastArt = null;
@@ -93,30 +107,125 @@
 
   function renderNowPlaying(np) {
     var hasTrack = !!(np && np.title);
+    state.playing = !!(np && np.playing);
     body.classList.toggle("idle", !hasTrack);
     $("track").classList.toggle("paused", hasTrack && !np.playing);
     $("title").textContent = hasTrack ? np.title : "";
     $("artist").textContent = hasTrack ? (np.artist || "") : "";
     showArt(hasTrack ? np.art_url : null);
+
+    var pp = $("playpause");
+    pp.classList.toggle("playing", state.playing);
+    pp.setAttribute("aria-label", state.playing ? "Pausar" : "Reproducir");
+
+    if (np && typeof np.volume === "number") {
+      state.volume = np.volume;
+      if (!dragging) {
+        $("volume").value = np.volume;
+        $("volume-value").textContent = np.volume + " %";
+      }
+    }
+    // Los controles solo tienen sentido si la app del servidor está informando
+    $("transport").hidden = state.volume === null;
+    $("fader").hidden = state.volume === null;
   }
 
-  // --- Controles ---
-  var state = { power: null, audioHere: null, btAvailable: true, offline: false };
-
-  function setSwitch(id, on, text) {
-    var el = $(id);
-    el.setAttribute("aria-pressed", on ? "true" : "false");
-    $(id + "-state").textContent = text;
+  // --- Reproducción y volumen ---
+  function command(action, value) {
+    return api("POST", "/media/command", value === undefined ? { action: action } : { action: action, value: value })
+      .catch(function (e) { flash("No se pudo enviar la orden: " + e.message); });
   }
 
+  $("prev").addEventListener("click", function () { command("previous"); });
+  $("next").addEventListener("click", function () { command("next"); });
+  $("playpause").addEventListener("click", function () {
+    // Respuesta inmediata en pantalla; el estado real llega en el siguiente sondeo
+    state.playing = !state.playing;
+    $("playpause").classList.toggle("playing", state.playing);
+    command("toggle");
+  });
+
+  var dragging = false;
+  var volume = $("volume");
+  volume.addEventListener("input", function () {
+    dragging = true;
+    $("volume-value").textContent = volume.value + " %";
+  });
+  volume.addEventListener("change", function () {
+    dragging = false;
+    command("volume", parseInt(volume.value, 10));
+  });
+
+  // --- Menú de parlantes ---
+  function led(on) { return '<span class="led' + (on ? " on" : "") + '" aria-hidden="true"></span>'; }
+
+  function renderSheet() {
+    var powerText = state.power === null ? "Sin respuesta" : state.power ? "Encendidos" : "Apagados";
+    $("fact-power").innerHTML = led(state.power === true) + powerText;
+
+    var audioText;
+    if (state.power === false) audioText = "—";
+    else if (state.audioHere === null) audioText = state.btAvailable ? "Desconocido" : "Sin control (Shizuku inactivo)";
+    else audioText = state.audioHere ? "Sonando en este equipo" : "En otro equipo";
+    $("fact-audio").innerHTML = led(state.audioHere === true && state.power === true) + audioText;
+
+    var actPower = $("act-power");
+    actPower.disabled = state.power === null;
+    actPower.textContent = state.power ? "Apagar parlantes" : "Encender parlantes";
+
+    $("act-audio").hidden = !(state.power && state.audioHere === false && state.btAvailable);
+  }
+
+  function sheetMessage(text) {
+    $("sheet-message").textContent = text || "";
+    $("sheet-message").hidden = !text;
+  }
+
+  function openSheet() {
+    sheetMessage("");
+    renderSheet();
+    $("sheet").hidden = false;
+    $("act-close").focus();
+    refreshDevices();
+    refreshAudio();
+  }
+  function closeSheet() { $("sheet").hidden = true; $("speakers").focus(); }
+
+  $("speakers").addEventListener("click", openSheet);
+  $("act-close").addEventListener("click", closeSheet);
+  $("sheet").addEventListener("click", function (e) { if (e.target === $("sheet")) closeSheet(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
+
+  function busy(el, on) { el.classList.toggle("busy", on); el.disabled = on; }
+
+  $("act-power").addEventListener("click", function () {
+    var btn = $("act-power"), turnOn = !state.power;
+    busy(btn, true);
+    sheetMessage("");
+    api("POST", "/devices/" + DEVICE + "/power", { on: turnOn })
+      .then(function (d) {
+        state.power = d.online ? d.on : null;
+        render();
+        // Al encender, los parlantes tardan unos segundos en reconectarse por Bluetooth
+        if (turnOn) setTimeout(refreshAudio, 6000);
+      })
+      .catch(function (e) { sheetMessage("No se pudo " + (turnOn ? "encender" : "apagar") + ": " + e.message); })
+      .then(function () { busy(btn, false); renderSheet(); });
+  });
+
+  $("act-audio").addEventListener("click", function () {
+    var btn = $("act-audio");
+    busy(btn, true);
+    sheetMessage("");
+    api("POST", "/bluetooth/" + BT + "/connect")
+      .then(function (d) { state.audioHere = d.connected; render(); })
+      .catch(function () { sheetMessage("No se pudo traer el audio. Si la Mac tiene los parlantes, usa Music mode desde la Mac."); })
+      .then(function () { busy(btn, false); renderSheet(); });
+  });
+
+  // --- Render general ---
   function render() {
-    if (state.power === null) setSwitch("power", false, "Sin respuesta");
-    else setSwitch("power", state.power, state.power ? "Encendidos" : "Apagados");
-
-    if (state.audioHere === null) setSwitch("audio", false, "Desconocido");
-    else if (state.audioHere) setSwitch("audio", true, "Sonando aquí");
-    else setSwitch("audio", false, state.power ? "En otro equipo · tocar para traer" : "Parlantes apagados");
-    $("audio").disabled = !state.btAvailable || state.audioHere === true || state.power === false;
+    $("speakers").setAttribute("aria-pressed", state.power ? "true" : "false");
 
     var notice = "";
     if (state.offline) notice = "No hay conexión con el servidor. Reintentando…";
@@ -124,6 +233,8 @@
     else if (!state.btAvailable) notice = "Cambio de audio desactivado: abre Shizuku y toca Start.";
     $("notice").textContent = notice;
     $("notice").hidden = !notice;
+
+    if (!$("sheet").hidden) renderSheet();
   }
 
   function flash(message) {
@@ -131,26 +242,6 @@
     $("notice").hidden = false;
     setTimeout(render, 6000);
   }
-
-  function busy(id, on) {
-    $(id).classList.toggle("busy", on);
-  }
-
-  $("power").addEventListener("click", function () {
-    busy("power", true);
-    api("POST", "/devices/" + DEVICE + "/toggle")
-      .then(function (d) { state.power = d.online ? d.on : null; render(); setTimeout(refreshAudio, 6000); })
-      .catch(function (e) { flash("No se pudo cambiar los parlantes: " + e.message); })
-      .then(function () { busy("power", false); });
-  });
-
-  $("audio").addEventListener("click", function () {
-    busy("audio", true);
-    api("POST", "/bluetooth/" + BT + "/connect")
-      .then(function (d) { state.audioHere = d.connected; render(); })
-      .catch(function () { flash("No se pudo traer el audio. Si la Mac tiene los parlantes, usa Music mode desde la Mac."); })
-      .then(function () { busy("audio", false); });
-  });
 
   // Mantener presionado el reloj abre Ajustes de Android (salida del modo kiosco)
   var holdTimer = null;
@@ -199,7 +290,7 @@
   render();
   refreshHealth(); refreshDevices(); refreshAudio(); refreshNowPlaying();
   setInterval(tick, 1000);
-  setInterval(refreshNowPlaying, 2500);
+  setInterval(refreshNowPlaying, 2000);
   setInterval(refreshDevices, 10000);
   setInterval(refreshAudio, 15000);
   setInterval(refreshHealth, 30000);
