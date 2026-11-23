@@ -55,3 +55,19 @@ def test_toggle_offline_503(client):
 def test_toggle_404_y_auth(client):
     assert client.post("/devices/nada/toggle", headers=HEADERS).status_code == 404
     assert client.post("/devices/lamp/toggle").status_code == 401
+
+
+def test_log_de_acceso_tacha_secretos():
+    import logging
+
+    from app.main import RedactSecrets
+
+    rec = logging.LogRecord(
+        "uvicorn.access", logging.INFO, __file__, 1, '%s - "%s %s HTTP/%s" %d', None, None
+    )
+    rec.args = ("127.0.0.1:1", "GET", "/spotify/login?token=abc123&x=1", "1.1", 307)
+    RedactSecrets().filter(rec)
+    assert "abc123" not in rec.getMessage() and "token=***" in rec.getMessage()
+    rec.args = ("127.0.0.1:1", "GET", "/spotify/callback?code=SECRETO&state=s1", "1.1", 200)
+    RedactSecrets().filter(rec)
+    assert "SECRETO" not in rec.getMessage() and "s1" not in rec.getMessage()

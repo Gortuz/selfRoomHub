@@ -192,7 +192,8 @@ def test_search_uri(net, clock, tmp_path):
     net.on("GET", "/v1/search", (200, {"artists": {"items": [{"uri": "spotify:artist:1"}]}}))
     assert sp.search_uri("Soda Stereo", "artist") == "spotify:artist:1"
     q = urllib.parse.parse_qs(urllib.parse.urlparse(net.calls[0][1]).query)
-    assert q["q"] == ["Soda Stereo"] and q["limit"] == ["1"] and q["market"] == ["from_token"]
+    # market=from_token exigiría el permiso user-read-private: no se envía
+    assert q["q"] == ["Soda Stereo"] and q["limit"] == ["1"] and "market" not in q
     net.on("GET", "/v1/search", (200, {"artists": {"items": []}}))
     with pytest.raises(SpotifyError) as e:
         sp.search_uri("nadie", "artist")
@@ -233,7 +234,8 @@ def test_play_track_usa_uris_y_shuffle(net, clock, tmp_path):
     sp = make(net, clock, tmp_path)
     link(sp, clock)
     sp.play(uri="spotify:track:9", device="sala", shuffle=True)
-    assert net.paths("PUT") == ["/v1/me/player/shuffle", "/v1/me/player/play"]
+    # Primero reproducir: con nada cargado Spotify rechaza el aleatorio
+    assert net.paths("PUT") == ["/v1/me/player/play", "/v1/me/player/shuffle"]
     shuffle_url = [c[1] for c in net.calls if "shuffle" in c[1]][0]
     assert "state=true" in shuffle_url and "device_id=dev2" in shuffle_url
     assert put_bodies(net, "/play") == [{"uris": ["spotify:track:9"]}]

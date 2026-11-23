@@ -7,6 +7,8 @@ Arranque:
 import asyncio
 import contextlib
 import html
+import logging
+import re
 import secrets
 import time
 from pathlib import Path
@@ -73,6 +75,22 @@ class PanelFiles(StaticFiles):
         response = await super().get_response(path, scope)
         response.headers["Cache-Control"] = "no-cache"
         return response
+
+
+class RedactSecrets(logging.Filter):
+    """Tacha token, code y state de las URLs en el log de acceso (vinculación con Spotify)."""
+
+    _pattern = re.compile(r"\b(token|code|state)=[^&\s]*")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                self._pattern.sub(r"\1=***", a) if isinstance(a, str) else a for a in record.args
+            )
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(RedactSecrets())
 
 
 def create_app(

@@ -271,7 +271,8 @@ class SpotifyClient:
         data = self.api(
             "GET",
             "/search",
-            {"q": query, "type": type, "limit": 1, "market": "from_token"},
+            # Sin market=from_token: ese valor exige el permiso user-read-private, que no pedimos
+            {"q": query, "type": type, "limit": 1},
         )
         items = ((data or {}).get(type + "s") or {}).get("items") or []
         items = [i for i in items if i]
@@ -297,12 +298,17 @@ class SpotifyClient:
             uri = self.search_uri(query or "", type)
         target = self.find_device(device or self.device)
         device_id = target["id"]
-        if shuffle is not None:
-            self.api(
-                "PUT",
-                "/me/player/shuffle",
-                {"state": "true" if shuffle else "false", "device_id": device_id},
-            )
         payload = {"uris": [uri]} if type == "track" else {"context_uri": uri}
         self.api("PUT", "/me/player/play", {"device_id": device_id}, payload)
+        # El aleatorio va después de reproducir: sin nada cargado Spotify lo rechaza
+        # ("Restriction violated"). Si falla, la música ya suena: no es un error de la orden.
+        if shuffle is not None:
+            try:
+                self.api(
+                    "PUT",
+                    "/me/player/shuffle",
+                    {"state": "true" if shuffle else "false", "device_id": device_id},
+                )
+            except SpotifyError:
+                pass
         return {"uri": uri, "device": target.get("name"), "type": type}
