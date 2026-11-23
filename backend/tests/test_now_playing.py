@@ -133,3 +133,10 @@ def test_panel_redirects(client: TestClient) -> None:
     r = client.get("/panel", follow_redirects=False)
     assert r.status_code in (307, 308)
     assert r.headers["location"].endswith("/panel/")
+
+
+def test_panel_no_queda_en_cache(client):
+    # El kiosco debe ver los cambios del panel sin borrar la caché del WebView
+    r = client.get("/panel/")
+    assert r.status_code == 200
+    assert r.headers.get("cache-control") == "no-cache"

@@ -34,6 +34,15 @@ def _state(device: Device) -> dict[str, object]:
     return {"id": device.id, "name": device.name, "online": st.online, "on": st.on}
 
 
+class PanelFiles(StaticFiles):
+    """Archivos del panel sin caché fija: el kiosco ve cada cambio (revalida con ETag)."""
+
+    async def get_response(self, path: str, scope):  # type: ignore[override]
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 def create_app(
     devices: dict[str, Device] | None = None,
     token: str | None = None,
@@ -194,6 +203,6 @@ def create_app(
     def panel_redirect() -> RedirectResponse:
         return RedirectResponse("/panel/")
 
-    app.mount("/panel", StaticFiles(directory=PANEL_DIR, html=True), name="panel")
+    app.mount("/panel", PanelFiles(directory=PANEL_DIR, html=True), name="panel")
 
     return app
