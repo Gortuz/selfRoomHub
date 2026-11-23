@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-11-23T02:04:14.450Z",
         "reason": "User chose the 'Afiche chicha' direction; its recorded signature is the title painted in hard-stop horizontal bands of flat ink (chicha poster lettering), not a smooth decorative gradient"
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "backend/app/panel/index.html"
+        ],
+        "createdAt": "2026-11-23T02:07:29.459Z",
+        "reason": "User chose the 'Afiche chicha' direction; the flagged text is the title painted in hard-stop horizontal bands of flat ink (its recorded signature), styled in panel.css where the same exception is recorded"
       }
     ]
   }
