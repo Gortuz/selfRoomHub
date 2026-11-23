@@ -442,9 +442,18 @@
     views.style.transform = "";
     if (view === 0) syncLyrics(true);
   }
-  Array.prototype.forEach.call(document.querySelectorAll(".dot"), function (d) {
-    d.addEventListener("click", function () { setView(parseInt(d.getAttribute("data-go"), 10)); });
-  });
+  // ¿Hay notch? Se mide el margen seguro de cada lado para poner el indicador en esa franja libre
+  function placeDots() {
+    var probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;visibility:hidden;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)";
+    document.body.appendChild(probe);
+    var cs = getComputedStyle(probe), left = parseFloat(cs.paddingLeft) || 0, right = parseFloat(cs.paddingRight) || 0;
+    document.body.removeChild(probe);
+    body.classList.toggle("notch-left", left >= 16 && left >= right);
+    body.classList.toggle("notch-right", right >= 16 && right > left);
+  }
+  placeDots();
+  window.addEventListener("resize", placeDots);
   document.addEventListener("keydown", function (e) {
     if (!$("sheet").hidden) return;
     if (e.key === "ArrowLeft") setView(view - 1);

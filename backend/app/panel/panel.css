@@ -309,26 +309,33 @@ html, body {
 .views[data-view="0"] { transform: translateX(0); }
 .views[data-view="2"] { transform: translateX(-200vw); }
 
+/* Indicador de vista: solo muestra dónde estás (se cambia deslizando); nunca recibe toques */
 .dots {
-  position: fixed; left: 50%; bottom: 6px;
+  position: fixed; left: 50%; bottom: 8px;
   display: flex;
   transform: translateX(-50%);
+  pointer-events: none;
   z-index: 5;
 }
-.dot {
-  width: 30px; height: 24px;
-  margin: 0 2px; padding: 0;
-  border: 0; background: transparent;
-  cursor: pointer;
+.dot { display: block; width: 8px; height: 8px; margin: 0 3px; background: var(--rule); }
+.views[data-view="0"] ~ .dots .dot[data-go="0"],
+.views[data-view="1"] ~ .dots .dot[data-go="1"],
+.views[data-view="2"] ~ .dots .dot[data-go="2"] { background: var(--ink-1); width: 20px; }
+
+/* Con notch (Android en horizontal): columna vertical en la franja libre junto al recorte */
+.notch-left .dots, .notch-right .dots {
+  top: 18px; bottom: auto;
+  flex-direction: column;
 }
-.dot::before {
-  content: ""; display: block;
-  width: 8px; height: 8px; margin: 0 auto;
-  background: var(--rule);
-}
-.views[data-view="0"] ~ .dots .dot[data-go="0"]::before,
-.views[data-view="1"] ~ .dots .dot[data-go="1"]::before,
-.views[data-view="2"] ~ .dots .dot[data-go="2"]::before { background: var(--ink-1); width: 20px; }
+.notch-left .dots { left: calc(env(safe-area-inset-left) / 2); }
+.notch-right .dots { left: auto; right: calc(env(safe-area-inset-right) / 2); transform: translateX(50%); }
+.notch-left .dot, .notch-right .dot { margin: 3px 0; }
+.notch-left .views[data-view="0"] ~ .dots .dot[data-go="0"],
+.notch-left .views[data-view="1"] ~ .dots .dot[data-go="1"],
+.notch-left .views[data-view="2"] ~ .dots .dot[data-go="2"],
+.notch-right .views[data-view="0"] ~ .dots .dot[data-go="0"],
+.notch-right .views[data-view="1"] ~ .dots .dot[data-go="1"],
+.notch-right .views[data-view="2"] ~ .dots .dot[data-go="2"] { width: 8px; height: 20px; }
 
 /* Letra: la línea que suena va en tinta de afiche; el resto en hueso */
 .lyrics {
@@ -345,7 +352,7 @@ html, body {
 .lyrics-artist { margin: 6px 0 0; font-weight: 700; font-size: 16px; color: var(--bone); }
 .lyrics-scroll {
   position: relative;
-  min-height: 0; height: calc(100% - 22px); /* deja libre la franja de las marcas de vista */
+  min-height: 0; height: 100%;
   overflow: hidden;
   -webkit-mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
   mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
