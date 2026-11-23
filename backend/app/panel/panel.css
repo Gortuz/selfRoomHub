@@ -110,6 +110,8 @@ html, body {
 .switch:active { background: rgba(0, 0, 0, 0.32); }
 .switch:focus-visible { outline: 2px solid var(--led-on); outline-offset: 3px; }
 .switch[disabled] { opacity: 0.5; cursor: default; }
+/* Activo y sin acción pendiente (p. ej. el audio ya suena aquí): se ve encendido, no apagado */
+.switch[disabled][aria-pressed="true"] { opacity: 1; }
 .switch.busy .led { animation: blink 0.8s steps(2, start) infinite; }
 
 .led {
