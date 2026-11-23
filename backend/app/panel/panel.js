@@ -517,6 +517,21 @@
     $("lyrics-state").hidden = !text;
   }
 
+  // Texto de una línea que no cabe: se recorre de ida y vuelta, a velocidad de lectura
+  function marquee(span) {
+    var box = span.parentNode;
+    box.classList.remove("moving");
+    var overflow = span.offsetWidth - box.clientWidth;
+    if (overflow > 2) {
+      box.style.setProperty("--marquee-shift", -overflow + "px");
+      box.style.setProperty("--marquee-time", Math.max(5, overflow / 30 + 3) + "s");
+      box.classList.add("moving");
+    }
+  }
+  function refreshMarquees() { marquee($("lyrics-title")); marquee($("lyrics-artist")); }
+  window.addEventListener("resize", refreshMarquees);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(refreshMarquees);
+
   function loadLyrics(np) {
     var key = np && np.title ? np.title + "|" + (np.artist || "") : null;
     if (key === lyrics.key) return;
@@ -525,6 +540,7 @@
     $("lyrics-scroll").classList.remove("plain");
     $("lyrics-title").textContent = np && np.title ? splitTitle(np.title)[0] : "";
     $("lyrics-artist").textContent = np && np.artist ? np.artist : "";
+    refreshMarquees();
     $("lyrics-cover").innerHTML = "";
     if (np && np.art_url) {
       var img = new Image();
