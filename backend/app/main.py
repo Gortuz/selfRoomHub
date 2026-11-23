@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app import config
+from app.battery import BatteryError, BatteryMonitor
 from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
 from app.lyrics import LyricsClient, LyricsFetcher, LyricsUnavailable
@@ -53,6 +54,7 @@ def create_app(
     bluetooth_targets: dict[str, BluetoothTarget] | None = None,
     bluetooth_controller: BluetoothController | None = None,
     lyrics_fetcher: LyricsFetcher | None = None,
+    battery: BatteryMonitor | None = None,
 ) -> FastAPI:
     # Sin inyección se arranca de verdad: se lee .env y la configuración
     from_config = devices is None or token is None
@@ -121,6 +123,8 @@ def create_app(
     media_queue = CommandQueue()
     lyrics = LyricsClient(lyrics_fetcher)
 
+    battery_monitor = battery or BatteryMonitor()
+
     app = FastAPI(title="selfRoomHub")
 
     @app.get("/health")
@@ -129,6 +133,13 @@ def create_app(
         if bt_targets:
             result["bluetooth"] = "ok" if bluetooth_available() else "unavailable"
         return result
+
+    @app.get("/battery", dependencies=[Depends(auth)])
+    def read_battery() -> dict[str, object]:
+        try:
+            return battery_monitor.read()
+        except BatteryError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
 
     @app.get("/devices", dependencies=[Depends(auth)])
     def list_devices() -> list[dict[str, object]]:

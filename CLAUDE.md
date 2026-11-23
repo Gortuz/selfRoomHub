@@ -65,6 +65,7 @@ NFC / Tasker        ──┘        │
 
 ## Endpoints
 
+- `GET /battery` (batería del servidor vía Termux:API; 503 si no está disponible)
 - `GET /health` (incluye `bluetooth: ok|unavailable` si hay Bluetooth configurado; `unavailable` = Shizuku inactivo)
 - `GET /devices`
 - `POST /devices/{id}/power` con body `{"on": true|false}`

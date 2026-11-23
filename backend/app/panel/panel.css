@@ -81,6 +81,26 @@ html, body {
 .date::first-letter { text-transform: uppercase; }
 .idle .date { margin-left: 0; }
 
+/* Batería del servidor: pila dibujada con el nivel en tinta, rayo al cargar */
+.battery {
+  display: inline-flex; align-items: center;
+  flex: none;
+  margin-left: 12px;
+  font-weight: 700; font-size: clamp(14px, 3.8vh, 17px);
+  font-variant-numeric: tabular-nums;
+  color: var(--bone-soft);
+  white-space: nowrap;
+}
+.battery svg { width: 30px; height: 15px; margin-right: 6px; }
+.battery .shell { fill: none; stroke: var(--bone-soft); stroke-width: 1.5; }
+.battery .cap { fill: var(--bone-soft); }
+.battery .level { fill: var(--ink-1); }
+.battery .bolt { fill: var(--bone); stroke: var(--ground); stroke-width: 1; }
+.battery.low { color: var(--alert); }
+.battery.low .level { fill: var(--alert); }
+.battery-sky { margin: 8px 0 0 4px; color: var(--bone); }
+.battery-sky .level { fill: var(--sky-1, var(--ink-1)); }
+
 .speakers {
   display: inline-flex; align-items: center;
   margin-left: 22px;

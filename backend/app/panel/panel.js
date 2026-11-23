@@ -425,6 +425,30 @@
       .then(render);
   }
 
+  // --- Batería del servidor ---
+  function renderBattery(el, b) {
+    if (!b) { el.hidden = true; return; }
+    var p = Math.max(0, Math.min(100, b.percentage));
+    var w = Math.max(1.5, 19 * p / 100);
+    el.innerHTML =
+      '<svg viewBox="0 0 30 15" aria-hidden="true">' +
+      '<rect class="shell" x="1" y="1.5" width="24" height="12" rx="1"/>' +
+      '<rect class="cap" x="26" y="5" width="2.5" height="5"/>' +
+      '<rect class="level" x="3.5" y="4" width="' + w.toFixed(1) + '" height="7"/>' +
+      (b.charging ? '<path class="bolt" d="M14.5 2.5 9.5 8.5h4l-1.5 4.5 5.5-6.5h-4z"/>' : "") +
+      "</svg>" + p + " %";
+    el.setAttribute("aria-label", "Batería " + p + " %" + (b.charging ? ", cargando" : ""));
+    el.classList.toggle("low", p < 20 && !b.charging);
+    el.hidden = false;
+  }
+
+  function refreshBattery() {
+    if (!token) return;
+    api("GET", "/battery")
+      .then(function (b) { renderBattery($("battery"), b); renderBattery($("sky-battery"), b); })
+      .catch(function () { renderBattery($("battery"), null); renderBattery($("sky-battery"), null); });
+  }
+
   function refreshHealth() {
     fetch("/health").then(function (r) { return r.json(); })
       .then(function (h) { state.btAvailable = h.bluetooth !== "unavailable"; state.offline = false; })
@@ -683,4 +707,6 @@
   setInterval(refreshDevices, 10000);
   setInterval(refreshAudio, 15000);
   setInterval(refreshHealth, 30000);
+  refreshBattery();
+  setInterval(refreshBattery, 60000);
 })();
