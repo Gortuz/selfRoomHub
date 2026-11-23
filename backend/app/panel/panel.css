@@ -115,8 +115,10 @@ html, body {
 
 /* El afiche: título en bandas horizontales de tinta plana (firma del panel) */
 .poster {
-  flex: 1 1 auto;
+  /* Base 0 y sin desborde: su alto es el espacio libre, no el tamaño del título */
+  flex: 1 1 0;
   min-height: 0;
+  overflow: hidden;
   display: flex; flex-direction: column; justify-content: center;
 }
 .title {

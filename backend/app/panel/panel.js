@@ -171,7 +171,12 @@
     }
   }
   window.addEventListener("resize", fitTitle);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTitle);
+  // La fuente del afiche llega después del primer dibujo: volver a medir cuando cargue
+  if (document.fonts) {
+    if (document.fonts.ready) document.fonts.ready.then(fitTitle);
+    if (document.fonts.addEventListener) document.fonts.addEventListener("loadingdone", fitTitle);
+  }
+  setTimeout(fitTitle, 1500);
 
   function renderNowPlaying(np) {
     var hasTrack = !!(np && np.title);
