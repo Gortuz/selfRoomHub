@@ -257,7 +257,10 @@ class MediaListenerService : NotificationListenerService() {
             if (!put(json.toString())) {
                 // Que el siguiente envio vuelva a incluir la portada.
                 if (hash != null && lastArtHash == hash) lastArtHash = null
-            } else if (backendMissingArt && withArt) {
+            } else if (!backendMissingArt) {
+                // El backend tiene la portada: si la vuelve a perder, se podrá reenviar otra vez
+                artResyncKey = null
+            } else if (withArt) {
                 // Desincronizados (backend reiniciado o primera canción sin imagen): reenviar ya
                 val songKey = json.optString("title") + "|" + json.optString("artist")
                 if (songKey != artResyncKey) {

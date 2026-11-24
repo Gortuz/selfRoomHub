@@ -379,3 +379,29 @@ def test_escena_notifica_por_ntfy():
     ok, bad = n.sent
     assert ok.title == "Noche ✓" and ok.priority == "default"
     assert bad.title.startswith("Mala: falló") and bad.priority == "high"
+
+
+def test_wait_condicional_solo_si_se_acaba_de_encender():
+    raw = {
+        "s": [
+            {"power": {"device": "lamp", "on": True}},
+            {"wait": {"seconds": 4, "if_powered_on": True}},
+        ]
+    }
+    steps = parse(raw)["s"]
+    # Apagado → se enciende → espera
+    ctx, sleeps = make_ctx()
+    res = run_scene(steps, ctx)
+    assert sleeps == [4] and res[1]["ok"]
+    # Ya encendido → no espera
+    lamp = FakeDevice("lamp", "Lámpara", initially_on=True)
+    ctx2, sleeps2 = make_ctx(devices={"lamp": lamp})
+    res2 = run_scene(steps, ctx2)
+    assert sleeps2 == [] and res2[1]["ok"] and "omitida" in res2[1]["detail"]
+
+
+def test_wait_numero_sigue_funcionando_y_dict_invalido():
+    assert parse({"s": [{"wait": 2}]})["s"][0].args == {"seconds": 2, "if_powered_on": False}
+    for bad in ({"seconds": 99}, {"seconds": 2, "if_powered_on": "si"}, {"if_powered_on": True}):
+        with pytest.raises(SceneError):
+            parse({"s": [{"wait": bad}]})

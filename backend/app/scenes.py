@@ -52,6 +52,8 @@ class SceneContext:
     spotify: SpotifyClient | None = None
     mode: ModeState = field(default_factory=ModeState)
     power: SoftPower | None = None  # apagado suave de audio; sin él se apaga directo
+    # Lo pone un paso power on que realmente encendió algo (estaba apagado)
+    powered_on_now: bool = False
 
 
 def _ids(valid: Collection[str]) -> str:
@@ -70,11 +72,18 @@ def _parse_step(raw: Any, devices: Collection[str], bt_ids: Collection[str]) -> 
     if kind == "wake":
         return Step("wake")
     if kind == "wait":
+        # `wait: 4` o `wait: { seconds: 4, if_powered_on: true }` (si power on encendió algo)
+        conditional = False
+        if isinstance(body, dict):
+            conditional = body.get("if_powered_on", False)
+            if not isinstance(conditional, bool):
+                raise SceneError("wait if_powered_on debe ser true/false")
+            body = body.get("seconds")
         if isinstance(body, bool) or not isinstance(body, int | float):
             raise SceneError("wait exige un número de segundos")
         if not 0 <= body <= MAX_WAIT_S:
             raise SceneError(f"wait debe estar entre 0 y {MAX_WAIT_S} segundos")
-        return Step("wait", {"seconds": body})
+        return Step("wait", {"seconds": body, "if_powered_on": conditional})
     if kind == "mode":
         if body not in MODE_VALUES:
             raise SceneError(f"mode debe ser uno de: {', '.join(MODE_VALUES)}")
@@ -233,7 +242,10 @@ def _do_step(step: Step, ctx: SceneContext) -> str:
     if step.kind == "power":
         device = ctx.devices[a["device"]]
         if a["on"]:
+            was_on = device.status().on
             device.on()
+            if was_on is not True:
+                ctx.powered_on_now = True
         else:
             _off(device, ctx)
         return f"{device.id} {'encendido' if a['on'] else 'apagado'}"
@@ -285,6 +297,8 @@ def _do_step(step: Step, ctx: SceneContext) -> str:
         return _spotify_step(a, ctx)
     if step.kind == "wake":
         return f"orden wake encolada (id {ctx.queue.add(MediaCommand(action='wake'))})"
+    if a.get("if_powered_on") and not ctx.powered_on_now:
+        return "espera omitida (ya estaba encendido)"
     ctx.sleep(a["seconds"])
     return f"esperó {a['seconds']} s"
 
