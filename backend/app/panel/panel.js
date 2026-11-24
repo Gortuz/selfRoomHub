@@ -106,36 +106,70 @@
 
   var DEFAULT_INKS = ["#ffe600", "#ff3ea5", "#39ff7a"];
 
-  // Tres tintas de afiche desde la portada: los tonos más presentes, llevados a fluorescente
+  // Tres tintas de afiche desde la portada: siempre del disco, aunque sea apagado o monocromo
+  function hslToRgb(h, sat, l) {
+    var c = (1 - Math.abs(2 * l - 1)) * sat, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+    var r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; }
+    else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; }
+    return [r + m, g + m, b + m];
+  }
+  function luminance(rgb) {
+    var lin = rgb.map(function (v) { return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+  }
+  // Aclara la tinta lo justo para leerse sobre el negro de imprenta (contraste >= 7:1)
+  function legibleInk(h, sat, l) {
+    var groundL = 0.0045;
+    while (l < 0.92 && (luminance(hslToRgb(h, sat, l)) + 0.05) / (groundL + 0.05) < 7) l += 0.02;
+    return "hsl(" + Math.round(h) + ", " + Math.round(sat * 100) + "%, " + Math.round(l * 100) + "%)";
+  }
+  function hueDistance(a, b) { var d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+
   function inksFrom(img) {
     try {
-      var size = 24, c = document.createElement("canvas");
+      var size = 32, c = document.createElement("canvas");
       c.width = c.height = size;
       var ctx = c.getContext("2d");
       ctx.drawImage(img, 0, 0, size, size);
-      var d = ctx.getImageData(0, 0, size, size).data, bins = [];
-      for (var b = 0; b < 12; b++) bins.push({ hue: b * 30, weight: 0 });
+      var d = ctx.getImageData(0, 0, size, size).data, BINS = 24, bins = [], colored = 0, total = 0, warm = 0;
+      for (var b = 0; b < BINS; b++) bins.push({ hueSum: 0, satSum: 0, weight: 0 });
       for (var i = 0; i < d.length; i += 4) {
         var r = d[i] / 255, g = d[i + 1] / 255, bl = d[i + 2] / 255;
         var max = Math.max(r, g, bl), min = Math.min(r, g, bl), delta = max - min;
         var light = (max + min) / 2;
         var sat = delta === 0 ? 0 : delta / (1 - Math.abs(2 * light - 1));
-        if (sat < 0.25 || light < 0.12 || light > 0.92) continue;
+        total++;
+        warm += r - bl;
+        if (sat < 0.12 || light < 0.08 || light > 0.95) continue;
+        colored++;
         var h = max === r ? ((g - bl) / delta) % 6 : max === g ? (bl - r) / delta + 2 : (r - g) / delta + 4;
         h = (h * 60 + 360) % 360;
-        bins[Math.floor(h / 30) % 12].weight += sat;
+        // Pesan más los colores vivos y de luz media (lo que el ojo recuerda del disco)
+        var w = Math.pow(sat, 1.5) * (1 - Math.abs(2 * light - 1));
+        var bin = bins[Math.floor(h / (360 / BINS)) % BINS];
+        bin.hueSum += h * w; bin.satSum += sat * w; bin.weight += w;
       }
-      var picked = bins.filter(function (x) { return x.weight > 2; })
-        .sort(function (a, b2) { return b2.weight - a.weight; }).slice(0, 3)
-        .map(function (x) { return x.hue + 15; });
-      if (!picked.length) return DEFAULT_INKS;
-      var inks = picked.map(function (h) {
-        // Los amarillos y verdes ya son claros; los azules necesitan más luz para leerse sobre negro
-        var l = h > 200 && h < 290 ? 68 : 58;
-        return "hsl(" + Math.round(h) + ", 100%, " + l + "%)";
+      // Portada (casi) sin color: tintas monocromas, cálidas o frías según el disco
+      if (colored < total * 0.04) {
+        var hue = warm >= 0 ? 38 : 215;
+        return [legibleInk(hue, 0.25, 0.9), legibleInk(hue, 0.12, 0.72), legibleInk(hue, 0.08, 0.6)];
+      }
+      var ranked = bins.filter(function (x) { return x.weight > 0; })
+        .map(function (x) { return { h: x.hueSum / x.weight, s: x.satSum / x.weight, w: x.weight }; })
+        .sort(function (a, b2) { return b2.w - a.w; });
+      var picked = [];
+      ranked.forEach(function (x) {
+        if (picked.length < 3 && picked.every(function (p) { return hueDistance(p.h, x.h) >= 40; })) picked.push(x);
       });
-      while (inks.length < 3) inks.push(DEFAULT_INKS[inks.length]);
-      return inks;
+      // Un solo color en el disco: variantes análogas del mismo, no colores inventados
+      var base = picked[0];
+      while (picked.length < 3) picked.push({ h: (base.h + (picked.length === 1 ? 28 : -28) + 360) % 360, s: base.s });
+      return picked.map(function (x) {
+        // Más vivas que en la portada (es un afiche), pero conservando su carácter
+        var sat = Math.max(0.55, Math.min(1, x.s * 1.6));
+        return legibleInk(x.h, sat, 0.55);
+      });
     } catch (e) { return DEFAULT_INKS; }
   }
 

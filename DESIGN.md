@@ -143,7 +143,7 @@ Negro de imprenta, blanco hueso y tres tintas fluorescentes que cambian con cada
 - **Aviso Coral** (alert): mensajes de error y de estado del sistema. Solo texto, nunca relleno.
 
 ### Named Rules
-**La Regla de las Tintas Vivas.** Las tintas se derivan de la portada en tiempo real: los tres tonos más presentes (saturación mínima 0.25, luz entre 0.12 y 0.92) se llevan a `hsl(h, 100%, 58%)`, y a 68% de luz entre 200° y 290° para que los azules se lean sobre negro. Si no hay portada o no hay tonos suficientes, vuelven los valores de reposo. Ningún componente usa un color de tinta fijo; siempre `var(--ink-n)`.
+**La Regla de las Tintas Vivas.** Las tintas salen siempre de la portada: se agrupan los tonos en 24 sectores, pesando más los colores vivos y de luz media; se eligen tres separados al menos 40°, se avivan (saturación ×1,6, mínimo 55 %) y se aclaran hasta un contraste de 7:1 sobre el negro de imprenta. Si el disco tiene un solo color, las otras dos tintas son análogas (±28°); si es monocromo, las tintas son marfil, gris y plata, cálidos o fríos según el disco. Las tintas fijas (amarillo, rosa, verde) solo se usan sin portada o si la imagen no se puede leer.
 
 **La Regla de Tinta Plana.** Todo color es plano. Un degradado solo existe con cortes duros (`0 34%, 34% 67%`) para imitar bandas o rellenos impresos; nunca transiciones suaves, nunca vidrio ni desenfoque.
 
