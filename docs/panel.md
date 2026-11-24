@@ -141,7 +141,7 @@ Además la app enciende la pantalla sola cuando empieza a sonar música.
 Apagado suave: un dispositivo con `audio: true` en `devices.yaml` (los parlantes) se apaga pausando antes la música y esperando 1,5 s para evitar el "pop"; `POST /devices/{id}/power?hard=true` corta sin pausa.
 Con temporizador de 2 min o más en un dispositivo de audio, el volumen baja en escalones durante ~45 s antes del final (empieza 60 s antes), se pausa y se restaura el volumen original; reprogramar, poner `minutes: 0` o apagar lo cancela.
 
-Pasos de escena nuevos: `timer: { device, minutes }` y `mode: night | day | auto`.
+Pasos de escena nuevos: `timer: { device, minutes }`, `mode: night | day | auto` y `spotify: { resume: true }` (retoma lo último que sonaba en el dispositivo configurado). En las rutinas gana la primera ventana que contiene la hora actual.
 
 ```yaml
 routines:

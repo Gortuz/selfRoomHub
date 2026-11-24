@@ -44,6 +44,9 @@ class MediaListenerService : NotificationListenerService() {
     private var controllers: List<MediaController> = emptyList()
     private var current: MediaController? = null
     @Volatile private var lastArtHash: String? = null
+    // El backend respondió sin portada para la canción actual: reenviarla una vez por canción
+    @Volatile private var backendMissingArt = false
+    private var artResyncKey: String? = null
     // Solo se tocan desde el executor `io`.
     private var artCacheKey: String? = null
     private var artCacheBytes: ByteArray? = null
@@ -254,6 +257,14 @@ class MediaListenerService : NotificationListenerService() {
             if (!put(json.toString())) {
                 // Que el siguiente envio vuelva a incluir la portada.
                 if (hash != null && lastArtHash == hash) lastArtHash = null
+            } else if (backendMissingArt && withArt) {
+                // Desincronizados (backend reiniciado o primera canción sin imagen): reenviar ya
+                val songKey = json.optString("title") + "|" + json.optString("artist")
+                if (songKey != artResyncKey) {
+                    artResyncKey = songKey
+                    lastArtHash = null
+                    main.postDelayed({ scheduleSend() }, 1_000)
+                }
             }
         }
     }
@@ -567,6 +578,11 @@ class MediaListenerService : NotificationListenerService() {
                 conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
                 val code = conn.responseCode
                 if (code !in 200..299) Log.w(TAG, "PUT /now-playing -> $code")
+                if (code in 200..299) {
+                    // ¿El backend tiene la portada de lo que suena? (pudo reiniciarse o perderla)
+                    val resp = runCatching { JSONObject(conn.inputStream.bufferedReader().readText()) }.getOrNull()
+                    backendMissingArt = resp != null && !resp.isNull("title") && resp.isNull("art_url")
+                }
                 code in 200..299
             } finally {
                 conn.disconnect()

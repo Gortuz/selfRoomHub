@@ -397,3 +397,25 @@ def test_escena_sin_cliente():
     steps = parse_scenes({"s": [{"spotify": {"play": "x"}}]}, [], [])["s"]
     (res,) = run_scene(steps, scene_ctx(None, []))
     assert not res["ok"] and "no configurado" in res["detail"]
+
+
+def test_resume_transfiere_y_reproduce(net, clock, tmp_path):
+    sp = make(net, clock, tmp_path)
+    link(sp, clock)
+    res = sp.resume(device="sala")
+    assert net.paths("PUT") == ["/v1/me/player"]
+    assert put_bodies(net, "/me/player") == [{"device_ids": ["dev2"], "play": True}]
+    assert res["device"]
+
+
+def test_escena_spotify_resume(net, clock, tmp_path):
+    sp = make(net, clock, tmp_path)
+    link(sp, clock)
+    steps = parse_scenes({"s": [{"spotify": {"resume": True, "device": "sala"}}]}, [], [])["s"]
+    (res,) = run_scene(steps, scene_ctx(sp, []))
+    assert res["ok"] and "reanudando" in res["detail"]
+
+
+def test_escena_spotify_resume_no_mezcla_play():
+    with pytest.raises(ValueError):
+        parse_scenes({"s": [{"spotify": {"resume": True, "play": "x"}}]}, [], [])

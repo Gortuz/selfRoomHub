@@ -125,6 +125,16 @@ def _parse_step(raw: Any, devices: Collection[str], bt_ids: Collection[str]) -> 
 
 def _parse_spotify(body: dict[str, Any]) -> Step:
     play, uri = body.get("play"), body.get("uri")
+    # resume: retomar lo último que sonaba (sin elegir qué)
+    if body.get("resume") is not None:
+        if body.get("resume") is not True:
+            raise SceneError("spotify resume debe ser true")
+        if play is not None or uri is not None or body.get("type") is not None:
+            raise SceneError("spotify resume no se combina con play, uri ni type")
+        device = body.get("device")
+        if device is not None and not isinstance(device, str):
+            raise SceneError("spotify device debe ser texto")
+        return Step("spotify", {"resume": True, "device": device})
     if not (isinstance(play, str) and play.strip()) and not (isinstance(uri, str) and uri):
         raise SceneError("spotify exige play (texto) o uri")
     kind = body.get("type", "artist")
@@ -178,9 +188,18 @@ def _wait_bt(ctx: SceneContext, target: BluetoothTarget, expected: bool) -> bool
 def _spotify_step(args: dict[str, Any], ctx: SceneContext) -> str:
     if ctx.spotify is None:
         raise SceneError("Spotify no configurado")
+    if args.get("resume"):
+
+        def action() -> dict[str, Any]:
+            return ctx.spotify.resume(args.get("device"))  # type: ignore[union-attr]
+    else:
+
+        def action() -> dict[str, Any]:
+            return ctx.spotify.play(**args)  # type: ignore[union-attr]
+
     try:
         try:
-            result = ctx.spotify.play(**args)
+            result = action()
         except DeviceNotFound:
             # Spotify cerrado: se enciende la pantalla, se abre Spotify y se reintenta
             ctx.queue.add(MediaCommand(action="wake"))
@@ -189,13 +208,15 @@ def _spotify_step(args: dict[str, Any], ctx: SceneContext) -> str:
             for i, wait in enumerate(SPOTIFY_RETRY_WAITS_S):
                 ctx.sleep(wait)
                 try:
-                    result = ctx.spotify.play(**args)
+                    result = action()
                     break
                 except DeviceNotFound:
                     if i == len(SPOTIFY_RETRY_WAITS_S) - 1:
                         raise
     except SpotifyError as e:
         raise SceneError(e.message) from e
+    if args.get("resume"):
+        return f"reanudando en {result['device']}"
     return f"reproduciendo {result['uri']} en {result['device']}"
 
 

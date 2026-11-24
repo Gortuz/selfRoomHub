@@ -280,6 +280,12 @@ class SpotifyClient:
             raise SpotifyError(404, f"Spotify no encontró {type}: {query}")
         return str(items[0]["uri"])
 
+    def resume(self, device: str | None = None) -> dict[str, Any]:
+        """Retoma lo último que sonaba, pasándolo a este dispositivo."""
+        target = self.find_device(device or self.device)
+        self.api("PUT", "/me/player", None, {"device_ids": [target["id"]], "play": True})
+        return {"uri": None, "device": target.get("name"), "type": "resume"}
+
     def play(
         self,
         query: str | None = None,
