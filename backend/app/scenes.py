@@ -25,7 +25,9 @@ STEP_KINDS = ("power", "toggle", "bluetooth", "media", "spotify", "wake", "wait"
 MODE_VALUES = ("night", "day", "auto")
 MAX_TIMER_MIN = 720
 SPOTIFY_TYPES = ("artist", "album", "playlist", "track")
-SPOTIFY_WAKE_WAIT_S = 3
+SPOTIFY_PACKAGE = "com.spotify.music"
+# Android cierra Spotify para ahorrar batería: tras abrirlo tarda en aparecer en Spotify Connect
+SPOTIFY_RETRY_WAITS_S = (8, 6)
 MAX_WAIT_S = 30
 BT_WAIT_POLLS = 8
 
@@ -180,10 +182,18 @@ def _spotify_step(args: dict[str, Any], ctx: SceneContext) -> str:
         try:
             result = ctx.spotify.play(**args)
         except DeviceNotFound:
-            # Spotify cerrado o dormido en el teléfono: se despierta y se reintenta una vez
+            # Spotify cerrado: se enciende la pantalla, se abre Spotify y se reintenta
             ctx.queue.add(MediaCommand(action="wake"))
-            ctx.sleep(SPOTIFY_WAKE_WAIT_S)
-            result = ctx.spotify.play(**args)
+            ctx.queue.add(MediaCommand(action="launch", package=SPOTIFY_PACKAGE))
+            result = None
+            for i, wait in enumerate(SPOTIFY_RETRY_WAITS_S):
+                ctx.sleep(wait)
+                try:
+                    result = ctx.spotify.play(**args)
+                    break
+                except DeviceNotFound:
+                    if i == len(SPOTIFY_RETRY_WAITS_S) - 1:
+                        raise
     except SpotifyError as e:
         raise SceneError(e.message) from e
     return f"reproduciendo {result['uri']} en {result['device']}"

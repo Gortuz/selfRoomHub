@@ -127,3 +127,28 @@ def test_wait_after_times_out_empty() -> None:
         return await CommandQueue().wait_after(0, 0.05)
 
     assert asyncio.run(scenario()) == []
+
+
+def test_orden_launch_exige_paquete_valido():
+    from app.media import MediaCommand
+
+    cmd = MediaCommand(action="launch", package="com.spotify.music")
+    assert cmd.package == "com.spotify.music"
+    for bad in (
+        {"action": "launch"},
+        {"action": "launch", "package": "rm -rf /"},
+        {"action": "pause", "package": "com.spotify.music"},
+    ):
+        try:
+            MediaCommand(**bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"debía rechazar {bad}")
+
+
+def test_launch_viaja_en_la_cola():
+    from app.media import CommandQueue, MediaCommand
+
+    q = CommandQueue()
+    q.add(MediaCommand(action="launch", package="com.spotify.music"))
+    assert q.after(0)[0].to_json()["package"] == "com.spotify.music"

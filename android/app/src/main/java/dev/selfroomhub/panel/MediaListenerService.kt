@@ -176,6 +176,38 @@ class MediaListenerService : NotificationListenerService() {
         }
     }
 
+    /**
+     * Abre una app (p. ej. Spotify, que Android cierra para ahorrar batería) y, unos segundos
+     * después, vuelve a poner el panel al frente: la app queda corriendo por detrás.
+     */
+    private fun launchApp(pkg: String?) {
+        if (pkg == null) {
+            Log.w(TAG, "launch sin package")
+            return
+        }
+        val intent = packageManager.getLaunchIntentForPackage(pkg)
+        if (intent == null) {
+            Log.w(TAG, "launch: $pkg no está instalada o no es visible")
+            return
+        }
+        wakeScreen()
+        try {
+            startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            Log.i(TAG, "launch: abierta $pkg")
+        } catch (e: Exception) {
+            Log.w(TAG, "launch: no se pudo abrir $pkg", e)
+            return
+        }
+        main.postDelayed({
+            runCatching {
+                startActivity(
+                    Intent(this, MainActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+                )
+            }.onFailure { Log.w(TAG, "launch: no se pudo volver al panel", it) }
+        }, PANEL_BACK_DELAY_MS)
+    }
+
     private fun release() {
         controllers.forEach { runCatching { it.unregisterCallback(callback) } }
         controllers = emptyList()
@@ -339,9 +371,10 @@ class MediaListenerService : NotificationListenerService() {
             val value = if (o.isNull("value")) null else o.optDouble("value")
             val query = if (o.isNull("query")) null else o.optString("query").takeIf { it.isNotBlank() }
             val focus = if (o.isNull("focus")) "any" else o.optString("focus", "any")
+            val pkg = if (o.isNull("package")) null else o.optString("package").takeIf { it.isNotBlank() }
             main.post {
                 try {
-                    execute(action, value, query, focus)
+                    if (action == "launch") launchApp(pkg) else execute(action, value, query, focus)
                 } catch (e: Exception) {
                     Log.w(TAG, "orden $action fallo", e)
                 }
@@ -545,6 +578,7 @@ class MediaListenerService : NotificationListenerService() {
     }
 
     private companion object {
+        private const val PANEL_BACK_DELAY_MS = 5_000L
         const val TAG = "MediaListener"
         const val SPOTIFY = "com.spotify.music"
         const val MIN_ART_SIDE = 400

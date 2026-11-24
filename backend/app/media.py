@@ -17,10 +17,16 @@ MAX_QUERY = 200
 
 
 class MediaCommand(BaseModel):
-    action: Literal["toggle", "play", "pause", "next", "previous", "volume", "play_search", "wake"]
+    action: Literal[
+        "toggle", "play", "pause", "next", "previous", "volume", "play_search", "wake", "launch"
+    ]
     value: int | None = Field(default=None, ge=0, le=100)
     query: str | None = Field(default=None, max_length=MAX_QUERY)
     focus: Literal["artist", "album", "playlist", "any"] | None = None
+    # launch: paquete Android a abrir (p. ej. com.spotify.music)
+    package: str | None = Field(
+        default=None, max_length=100, pattern=r"^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$"
+    )
 
     @model_validator(mode="after")
     def check_fields(self) -> Self:
@@ -35,6 +41,10 @@ class MediaCommand(BaseModel):
                 self.focus = "any"
         elif self.query is not None or self.focus is not None:
             raise ValueError("query y focus solo se admiten con play_search")
+        if self.action == "launch" and not self.package:
+            raise ValueError("launch exige package")
+        if self.action != "launch" and self.package is not None:
+            raise ValueError("package solo se admite con launch")
         return self
 
 
@@ -47,6 +57,7 @@ class QueuedCommand:
     expires_at: float  # monotonic
     query: str | None = None
     focus: str | None = None
+    package: str | None = None
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -55,6 +66,7 @@ class QueuedCommand:
             "value": self.value,
             "query": self.query,
             "focus": self.focus,
+            "package": self.package,
             "created_at": self.created_at,
         }
 
@@ -86,6 +98,7 @@ class CommandQueue:
                     expires_at=self._clock() + self._ttl,
                     query=command.query,
                     focus=command.focus,
+                    package=command.package,
                 )
             )
             new_id = self._last_id

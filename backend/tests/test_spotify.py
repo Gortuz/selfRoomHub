@@ -375,8 +375,11 @@ def test_escena_spotify_wake_y_reintento(net, clock, tmp_path):
     sleeps: list[float] = []
     ctx = scene_ctx(sp, sleeps)
     (res,) = run_scene(steps, ctx)
-    assert res["ok"] and sleeps == [3]
-    assert [c.action for c in ctx.queue.after(0)] == ["wake"]
+    # Spotify cerrado: se enciende la pantalla, se abre Spotify y se reintenta
+    assert res["ok"] and sleeps == [8]
+    cmds = ctx.queue.after(0)
+    assert [c.action for c in cmds] == ["wake", "launch"]
+    assert cmds[1].package == "com.spotify.music"
 
 
 def test_escena_spotify_sin_dispositivo_falla(net, clock, tmp_path):
@@ -386,7 +389,8 @@ def test_escena_spotify_sin_dispositivo_falla(net, clock, tmp_path):
     steps = parse_scenes({"s": [{"spotify": {"uri": "spotify:track:1"}}]}, [], [])["s"]
     sleeps: list[float] = []
     (res,) = run_scene(steps, scene_ctx(sp, sleeps))
-    assert not res["ok"] and "Disponibles" in res["detail"] and sleeps == [3]
+    # Dos reintentos tras abrir Spotify antes de rendirse
+    assert not res["ok"] and "Disponibles" in res["detail"] and sleeps == [8, 6]
 
 
 def test_escena_sin_cliente():
