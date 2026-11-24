@@ -322,3 +322,60 @@ def test_timer_fallos_no_detienen():
     )["s"]
     res = run_scene(steps, ctx)
     assert [r["ok"] for r in res] == [False, True]
+
+
+def test_resumen_legible(client):
+    body = client.post("/scenes/ok", headers=HEADERS).json()
+    assert body["summary"] == "Ok ✓"
+
+
+def test_resumen_con_fallo():
+    devices = {"dead": FakeDevice("dead", "x", online=False)}
+    scenes = parse_scenes({"noche": [{"toggle": {"device": "dead"}}]}, ["dead"], [])
+    c = TestClient(create_app(devices=devices, token=TOKEN, scenes=scenes))
+    summary = c.post("/scenes/noche", headers=HEADERS).json()["summary"]
+    assert summary.startswith("Noche: falló toggle")
+
+
+def test_ultimo_evento(client):
+    assert client.get("/scenes/last", headers=HEADERS).json() is None
+    client.post("/scenes/ok", headers=HEADERS)
+    last = client.get("/scenes/last", headers=HEADERS).json()
+    assert last["name"] == "ok" and last["ok"] is True and last["summary"] == "Ok ✓"
+    assert isinstance(last["id"], int) and last["at"]
+    client.post("/scenes/mixta", headers=HEADERS)
+    assert client.get("/scenes/last", headers=HEADERS).json()["id"] == last["id"] + 1
+
+
+class RecordingNotifier:
+    def __init__(self):
+        self.sent = []
+
+    def send(self, alert):
+        self.sent.append(alert)
+        return True
+
+
+def test_escena_notifica_por_ntfy():
+    import time as _time
+
+    devices = {"lamp": FakeDevice("lamp", "Lámpara"), "dead": FakeDevice("dead", "x", online=False)}
+    scenes = parse_scenes(
+        {
+            "noche": [{"power": {"device": "lamp", "on": True}}],
+            "mala": [{"toggle": {"device": "dead"}}],
+        },
+        ["lamp", "dead"],
+        [],
+    )
+    n = RecordingNotifier()
+    c = TestClient(create_app(devices=devices, token=TOKEN, scenes=scenes, notifier=n))
+    c.post("/scenes/noche", headers=HEADERS)
+    c.post("/scenes/mala", headers=HEADERS)
+    for _ in range(50):  # se envía en segundo plano
+        if len(n.sent) == 2:
+            break
+        _time.sleep(0.02)
+    ok, bad = n.sent
+    assert ok.title == "Noche ✓" and ok.priority == "default"
+    assert bad.title.startswith("Mala: falló") and bad.priority == "high"

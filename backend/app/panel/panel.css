@@ -271,6 +271,25 @@ html, body {
 .notice { margin: 10px 0 0; font-size: 15px; color: var(--alert); }
 .notice.calm { color: var(--bone-soft); }
 
+/* Aviso de escena (sticker, Siri, panel): cartel breve arriba al centro */
+.toast {
+  position: fixed; top: 14px; left: 50%;
+  max-width: min(92vw, 560px);
+  padding: 12px 20px;
+  transform: translateX(-50%);
+  background: var(--ground-raised);
+  border-top: 4px solid var(--ink-1);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  font-weight: 700; font-size: 18px;
+  color: var(--bone);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;
+  z-index: 20;
+  animation: drop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toast.failed { border-top-color: var(--alert); color: var(--alert); }
+@keyframes drop { from { transform: translate(-50%, -24px); opacity: 0; } }
+
 /* Menú de parlantes: hoja de cartel que sube desde abajo; nada se apaga sin confirmar */
 .sheet-backdrop {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -459,6 +478,7 @@ html, body {
 
 /* De noche el cuarto está oscuro: las tintas bajan y nada ilumina */
 body.night .view, body.night .dots, body.night .sheet, body.night .setup-form { opacity: 0.34; }
+body.night .toast { opacity: 0.6; }
 body.night .key-main { background: transparent; color: var(--ink-1); }
 
 /* Vertical (navegadores de otros equipos): portada arriba */
@@ -472,7 +492,7 @@ body.night .key-main { background: transparent; color: var(--ink-1); }
 @keyframes rise { from { transform: translateY(28px); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .busy .led, .sheet { animation: none; }
+  .busy .led, .sheet, .toast { animation: none; }
   .views, .lyrics-lines { transition: none; }
   .marquee.moving > span { animation: none; }
   .marquee { text-overflow: ellipsis; }

@@ -10,6 +10,7 @@ import html
 import logging
 import re
 import secrets
+import threading
 import time
 from collections.abc import Callable
 from datetime import datetime
@@ -362,13 +363,56 @@ def create_app(
         return [{"name": n, "steps": len(s)} for n, s in scene_defs.items()]
 
     # def: los pasos tienen esperas y corren en el threadpool
+    # Último resultado de escena: el panel lo muestra (para saber si un sticker funcionó)
+    last_event: dict[str, object] = {"id": 0, "event": None}
+    events_lock = threading.Lock()
+
+    def summarize(name: str, results: list[dict[str, object]]) -> str:
+        title = name.replace("_", " ").replace("-", " ").capitalize()
+        failed = next((r for r in results if not r["ok"]), None)
+        if failed is None:
+            return f"{title} ✓"
+        detail = str(failed.get("detail") or "")[:80]
+        return f"{title}: falló {failed['step']}" + (f" ({detail})" if detail else "")
+
+    def finish_scene(
+        name: str, results: list[dict[str, object]], **extra: object
+    ) -> dict[str, object]:
+        ok = all(r["ok"] for r in results)
+        summary = summarize(name, results)
+        with events_lock:
+            last_event["id"] = int(last_event["id"]) + 1  # type: ignore[call-overload]
+            last_event["event"] = {
+                "id": last_event["id"],
+                "name": name,
+                "ok": ok,
+                "summary": summary,
+                "at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                **extra,
+            }
+        # Aviso al teléfono (ntfy): para saber si un sticker o "Hey Siri" funcionó
+        if notifier is not None:
+            done = sum(1 for r in results if r["ok"])
+            alert = Alert(
+                kind="scene",
+                title=summary,
+                message=f"{done} de {len(results)} pasos completados.",
+                priority="default" if ok else "high",
+                tags=["white_check_mark"] if ok else ["warning"],
+            )
+            threading.Thread(target=notifier.send, args=(alert,), daemon=True).start()
+        return {"name": name, "ok": ok, "summary": summary, "steps": results, **extra}
+
+    @app.get("/scenes/last", dependencies=[Depends(auth)])
+    def last_scene() -> dict[str, object] | None:
+        return last_event["event"]  # type: ignore[return-value]
+
     @app.post("/scenes/{name}", dependencies=[Depends(auth)])
     def post_scene(name: str) -> dict[str, object]:
         steps = scene_defs.get(name)
         if steps is None:
             raise HTTPException(status_code=404, detail=f"Escena no encontrada: {name}")
-        results = run_scene(steps, scene_ctx)
-        return {"name": name, "ok": all(r["ok"] for r in results), "steps": results}
+        return finish_scene(name, run_scene(steps, scene_ctx))
 
     @app.get("/routines", dependencies=[Depends(auth)])
     def list_routines() -> list[dict[str, object]]:
@@ -384,13 +428,7 @@ def create_app(
         if window is None:
             raise HTTPException(status_code=409, detail=f"Ninguna escena aplica a las {now:%H:%M}")
         results = run_scene(scene_defs[window.scene], scene_ctx)
-        return {
-            "name": window.scene,
-            "ok": all(r["ok"] for r in results),
-            "steps": results,
-            "routine": name,
-            "scene": window.scene,
-        }
+        return finish_scene(window.scene, results, routine=name, scene=window.scene)
 
     def spotify_http_error(e: SpotifyError) -> HTTPException:
         code = e.status if e.status in (404, 409, 422) else 502

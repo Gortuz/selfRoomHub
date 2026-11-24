@@ -500,6 +500,27 @@
       .catch(function () { state.battery = null; renderBattery($("battery"), null); renderBattery($("sky-battery"), null); render(); });
   }
 
+  // --- Aviso de la última escena (para saber si el sticker o Siri funcionaron) ---
+  var lastEventId = null, toastTimer = null;
+  function showToast(ev) {
+    var t = $("toast");
+    t.textContent = ev.summary;
+    t.classList.toggle("failed", !ev.ok);
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, ev.ok ? 6000 : 12000);
+    markActive();
+  }
+  function refreshEvent() {
+    if (!token) return;
+    api("GET", "/scenes/last").then(function (ev) {
+      var id = ev ? ev.id : 0;
+      // La primera lectura solo marca el punto de partida: no repetir avisos viejos al abrir
+      if (lastEventId !== null && ev && id !== lastEventId) showToast(ev);
+      lastEventId = id;
+    }).catch(function () {});
+  }
+
   // --- Modo día/noche (lo cambian las escenas; el horario es el respaldo) ---
   function refreshMode() {
     if (!token) return;
@@ -843,4 +864,6 @@
   setInterval(refreshBattery, 60000);
   refreshMode();
   setInterval(refreshMode, 20000);
+  refreshEvent();
+  setInterval(refreshEvent, 3000);
 })();
