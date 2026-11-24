@@ -17,6 +17,7 @@ from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
 from app.media import CommandQueue, MediaCommand
 from app.mode import ModeState
+from app.soft_off import SoftPower
 from app.spotify import DeviceNotFound, SpotifyClient, SpotifyError
 
 NAME_RE = re.compile(r"^[a-z0-9_-]+$")
@@ -48,6 +49,7 @@ class SceneContext:
     sleep: Callable[[float], None] = time.sleep
     spotify: SpotifyClient | None = None
     mode: ModeState = field(default_factory=ModeState)
+    power: SoftPower | None = None  # apagado suave de audio; sin él se apaga directo
 
 
 def _ids(valid: Collection[str]) -> str:
@@ -187,24 +189,40 @@ def _spotify_step(args: dict[str, Any], ctx: SceneContext) -> str:
     return f"reproduciendo {result['uri']} en {result['device']}"
 
 
+def _off(device: Device, ctx: SceneContext) -> None:
+    if ctx.power is not None:
+        ctx.power.off(device)
+    else:
+        device.off()
+
+
 def _do_step(step: Step, ctx: SceneContext) -> str:
     """Ejecuta un paso y devuelve el detalle; lanza SceneError si falla."""
     a = step.args
     if step.kind == "power":
         device = ctx.devices[a["device"]]
-        device.on() if a["on"] else device.off()
+        if a["on"]:
+            device.on()
+        else:
+            _off(device, ctx)
         return f"{device.id} {'encendido' if a['on'] else 'apagado'}"
     if step.kind == "toggle":
         device = ctx.devices[a["device"]]
         st = device.status()
         if not st.online:
             raise SceneError(f"{device.id} está fuera de línea")
-        device.off() if st.on else device.on()
+        if st.on:
+            _off(device, ctx)
+        else:
+            device.on()
         return f"{device.id} {'apagado' if st.on else 'encendido'}"
     if step.kind == "timer":
         device = ctx.devices[a["device"]]
         try:
-            device.set_timer(a["minutes"] * 60)
+            if ctx.power is not None:
+                ctx.power.set_timer(device, a["minutes"])
+            else:
+                device.set_timer(a["minutes"] * 60)
         except NotImplementedError as e:
             raise SceneError(f"{device.id} no tiene temporizador") from e
         if a["minutes"] == 0:

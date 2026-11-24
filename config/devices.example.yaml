@@ -4,6 +4,7 @@ devices:
   - id: parlantes
     name: Parlantes
     type: tuya
+    audio: true   # alimenta parlantes: al apagar pausa la música antes (sin "pop")
     device_id: ${TUYA_PARLANTES_ID}
     address: 192.168.1.50
     local_key: ${TUYA_PARLANTES_KEY}

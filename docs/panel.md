@@ -138,6 +138,9 @@ Además la app enciende la pantalla sola cuando empieza a sonar música.
 | PUT | `/mode` | sí | `{"mode": "day"\|"night"\|"auto"}`; un modo forzado dura hasta el próximo cambio del horario (`SELFROOMHUB_NIGHT_FROM`/`_TO`, por defecto 23:00 y 06:00); `auto` vuelve al horario |
 | POST | `/routines/{name}` | sí | Ejecuta la escena cuya ventana horaria contiene la hora actual; 409 si ninguna aplica |
 
+Apagado suave: un dispositivo con `audio: true` en `devices.yaml` (los parlantes) se apaga pausando antes la música y esperando 1,5 s para evitar el "pop"; `POST /devices/{id}/power?hard=true` corta sin pausa.
+Con temporizador de 2 min o más en un dispositivo de audio, el volumen baja en escalones durante ~45 s antes del final (empieza 60 s antes), se pausa y se restaura el volumen original; reprogramar, poner `minutes: 0` o apagar lo cancela.
+
 Pasos de escena nuevos: `timer: { device, minutes }` y `mode: night | day | auto`.
 
 ```yaml

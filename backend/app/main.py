@@ -40,6 +40,7 @@ from app.mode import ModeState
 from app.now_playing import ArtError, NowPlaying, NowPlayingUpdate
 from app.routines import Window
 from app.scenes import SceneContext, Step, run_scene
+from app.soft_off import FadeScheduler, SoftPower
 from app.spotify import SpotifyClient, SpotifyError
 
 BT_WAIT_POLLS = 8
@@ -124,6 +125,7 @@ def create_app(
     spotify: SpotifyClient | None = None,
     routines: dict[str, list[Window]] | None = None,
     clock: Callable[[], datetime] = datetime.now,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> FastAPI:
     # Sin inyección se arranca de verdad: se lee .env y la configuración
     from_config = devices is None or token is None
@@ -203,7 +205,11 @@ def create_app(
     if spotify is None:
         spotify = SpotifyClient.from_env() if from_config else SpotifyClient(None)
     sp = spotify
-    scene_ctx = SceneContext(registry, bt, bt_targets, media_queue, spotify=sp, mode=mode_state)
+    fade = FadeScheduler(media_queue, now_playing, sleep=sleep)
+    soft = SoftPower(media_queue, now_playing, fade, sleep=sleep)
+    scene_ctx = SceneContext(
+        registry, bt, bt_targets, media_queue, spotify=sp, mode=mode_state, power=soft
+    )
 
     battery_monitor = battery or BatteryMonitor()
     thresholds = thresholds_from_env()
@@ -231,6 +237,7 @@ def create_app(
         try:
             yield
         finally:
+            fade.shutdown()
             if task is not None:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -280,10 +287,13 @@ def create_app(
         return _state(get_device(device_id))
 
     @app.post("/devices/{device_id}/power", dependencies=[Depends(auth)])
-    def set_power(device_id: str, body: PowerRequest) -> dict[str, object]:
+    def set_power(device_id: str, body: PowerRequest, hard: bool = False) -> dict[str, object]:
         device = get_device(device_id)
         try:
-            device.on() if body.on else device.off()
+            if body.on:
+                device.on()
+            else:
+                soft.off(device, hard=hard)
         except DeviceError as e:
             raise HTTPException(status_code=503, detail=str(e)) from e
         return _state(device)
@@ -295,7 +305,10 @@ def create_app(
         if not st.online:
             raise HTTPException(status_code=503, detail=f"{device_id} está fuera de línea")
         try:
-            device.off() if st.on else device.on()
+            if st.on:
+                soft.off(device)
+            else:
+                device.on()
         except DeviceError as e:
             raise HTTPException(status_code=503, detail=str(e)) from e
         return _state(device)
@@ -304,7 +317,7 @@ def create_app(
     def set_timer(device_id: str, body: TimerRequest) -> dict[str, object]:
         device = get_device(device_id)
         try:
-            device.set_timer(body.minutes * 60)
+            soft.set_timer(device, body.minutes)
         except NotImplementedError as e:
             raise HTTPException(status_code=501, detail=str(e)) from e
         except DeviceError as e:

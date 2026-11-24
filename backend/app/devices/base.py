@@ -18,6 +18,7 @@ class DeviceError(Exception):
 class Device(ABC):
     id: str
     name: str
+    audio: bool = False  # alimenta parlantes: se apaga con pausa previa
 
     @abstractmethod
     def on(self) -> None: ...
