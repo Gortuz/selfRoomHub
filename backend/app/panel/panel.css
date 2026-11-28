@@ -350,10 +350,10 @@ html, body {
 .setup .action { margin: 0; }
 .setup-error { margin: 0 0 12px; color: var(--alert); font-size: 15px; }
 
-/* Vistas: Letra ← Música → Reloj, se pasan deslizando */
+/* Vistas: Letra ← Música → Reloj → Luz, se pasan deslizando */
 .views {
   display: flex;
-  width: 300vw;
+  width: 400vw;
   height: 100%;
   transform: translateX(-100vw);
   transition: transform 0.42s cubic-bezier(0.16, 1, 0.3, 1);
@@ -363,6 +363,7 @@ html, body {
 .view { flex: none; width: 100vw; height: 100%; overflow: hidden; }
 .views[data-view="0"] { transform: translateX(0); }
 .views[data-view="2"] { transform: translateX(-200vw); }
+.views[data-view="3"] { transform: translateX(-300vw); }
 
 /* Indicador de vista: solo muestra dónde estás (se cambia deslizando); nunca recibe toques */
 .dots {
@@ -375,7 +376,8 @@ html, body {
 .dot { display: block; width: 8px; height: 8px; margin: 0 3px; background: var(--rule); }
 .views[data-view="0"] ~ .dots .dot[data-go="0"],
 .views[data-view="1"] ~ .dots .dot[data-go="1"],
-.views[data-view="2"] ~ .dots .dot[data-go="2"] { background: var(--ink-1); width: 20px; }
+.views[data-view="2"] ~ .dots .dot[data-go="2"],
+.views[data-view="3"] ~ .dots .dot[data-go="3"] { background: var(--ink-1); width: 20px; }
 
 /* Con notch (Android en horizontal): columna vertical en la franja libre junto al recorte */
 .notch-left .dots, .notch-right .dots {
@@ -390,7 +392,9 @@ html, body {
 .notch-left .views[data-view="2"] ~ .dots .dot[data-go="2"],
 .notch-right .views[data-view="0"] ~ .dots .dot[data-go="0"],
 .notch-right .views[data-view="1"] ~ .dots .dot[data-go="1"],
-.notch-right .views[data-view="2"] ~ .dots .dot[data-go="2"] { width: 8px; height: 20px; }
+.notch-right .views[data-view="2"] ~ .dots .dot[data-go="2"],
+.notch-left .views[data-view="3"] ~ .dots .dot[data-go="3"],
+.notch-right .views[data-view="3"] ~ .dots .dot[data-go="3"] { width: 8px; height: 20px; }
 
 /* Letra: la línea que suena va en tinta de afiche; el resto en hueso */
 .lyrics {
@@ -475,6 +479,83 @@ html, body {
 .channel-light .step, .channel-light .rail { background: rgba(12, 11, 14, 0.55); }
 .sky-date { margin: 10px 0 0 4px; font-weight: 700; font-size: clamp(16px, 5vh, 24px); color: var(--bone); }
 .sky-date::first-letter { text-transform: uppercase; }
+
+/* Botón del foco en el reloj: abajo a la izquierda, sobre los cerros */
+.sky-bulb {
+  position: absolute;
+  left: max(var(--pad), env(safe-area-inset-left)); bottom: calc(var(--pad) + 14px);
+  margin: 0;
+  background: rgba(12, 11, 14, 0.55);
+}
+.sky-bulb[aria-pressed="true"] > .led, .lamp-power[aria-pressed="true"] > .led {
+  background: var(--bulb, var(--ink-1));
+  box-shadow: 0 0 10px var(--bulb, var(--ink-1));
+}
+
+/* Luz: el título se tiñe del color real del foco; controles planos de imprenta */
+.lamp {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: var(--pad);
+  padding-left: max(var(--pad), env(safe-area-inset-left));
+  padding-right: max(var(--pad), env(safe-area-inset-right));
+}
+.lamp-main { min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.lamp-head { display: flex; align-items: center; }
+.lamp-title {
+  margin: 0;
+  font-family: var(--poster); font-weight: 400;
+  font-size: clamp(44px, 17vh, 110px); line-height: 0.95;
+  color: var(--bulb, var(--bone-soft));
+}
+.lamp.off .lamp-title { color: var(--led-off); }
+.lamp-power { margin-left: auto; }
+.lamp-state { margin: 4px 0 0; min-height: 1.3em; color: var(--bone-soft); font-size: clamp(14px, 3.8vh, 17px); }
+.lamp-state.alert { color: var(--alert); }
+.lamp-label {
+  margin: clamp(8px, 3vh, 18px) 0 6px;
+  font-weight: 700; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--bone-soft);
+}
+.lamp-presets { display: flex; flex-wrap: wrap; margin: clamp(8px, 3vh, 18px) -5px 0; }
+.chip {
+  flex: 1 1 0;
+  min-width: 0; height: clamp(44px, 12vh, 56px);
+  margin: 5px;
+  border: 2px solid var(--rule); border-radius: 0;
+  background: transparent; color: var(--bone);
+  font: inherit; font-weight: 700; font-size: 16px;
+  cursor: pointer;
+}
+.chip:active, .swatch:active { background: var(--ground-raised); }
+.temp-strip {
+  position: relative;
+  height: clamp(40px, 11vh, 56px);
+  background: linear-gradient(90deg, #ff9d3c, #ffd7a1 40%, #fff4e6 62%, #e3ecff);
+  touch-action: none;
+  cursor: pointer;
+}
+.temp-cap {
+  position: absolute; top: -5px; bottom: -5px; left: 0;
+  width: 14px; margin-left: -7px;
+  background: var(--ground);
+  border: 3px solid var(--bone);
+}
+.temp-strip.dragging .temp-cap { border-color: var(--ink-2); }
+.swatches { display: flex; margin: 0 -4px; }
+.swatch {
+  flex: 1 1 0;
+  min-width: 0; height: clamp(40px, 11vh, 56px);
+  margin: 0 4px; padding: 0;
+  border: 3px solid transparent; border-radius: 0;
+  cursor: pointer;
+}
+.swatch.on, .chip.on { border-color: var(--bone); }
+.lamp.busy .lamp-main { opacity: 0.75; }
+.channel-bulb .rail-fill { background: var(--bulb, var(--ink-1)); }
+.chip:focus-visible, .swatch:focus-visible, .temp-strip:focus-visible {
+  outline: 3px solid var(--ink-1); outline-offset: 3px;
+}
 
 /* De noche el cuarto está oscuro: las tintas bajan y nada ilumina */
 body.night .view, body.night .dots, body.night .sheet, body.night .setup-form { opacity: 0.34; }

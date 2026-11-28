@@ -12,6 +12,8 @@ Autenticación: el panel recibe el token en el fragmento de la URL (`/panel/#tok
 | GET | `/health` | no | `{"status":"ok","bluetooth":"ok"\|"unavailable"}` |
 | GET | `/devices` | sí | Estado de enchufes |
 | POST | `/devices/{id}/toggle` | sí | Encender/apagar |
+| POST | `/devices/{id}/power` | sí | Encender/apagar el foco desde la vista Luz |
+| POST | `/devices/{id}/light` | sí | Brillo, temperatura o color del foco (vista Luz) |
 | GET | `/bluetooth` | sí | `[{"id","name","connected"}]` (¿el servidor tiene el parlante?) |
 | POST | `/bluetooth/{id}/connect` | sí | Traer el audio al servidor |
 | GET | `/now-playing` | sí | Ver abajo |
@@ -151,3 +153,7 @@ routines:
 ```
 
 El panel consulta `/mode` y, en modo noche, se atenúa, muestra el reloj y no retiene la pantalla aunque haya música.
+
+## Vista Luz
+
+Cuarta vista (Letra ← Música → Reloj → **Luz**), solo si existe el dispositivo `foco` (constante `BULB` en `panel.js`; si da 404 la vista y su botón se ocultan). En el Reloj hay un botón que enciende o apaga el foco. La vista tiene encendido, ambientes (Leer, Cálida, Noche, Día), franja de temperatura 2500–6500 K, ocho colores y fader de brillo. La interfaz se tiñe del color real del foco (`--bulb`). El brillo y la temperatura se mandan al soltar el dedo.

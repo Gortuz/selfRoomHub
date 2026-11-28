@@ -90,6 +90,10 @@
       <p class="sky-timer" id="sky-timer" hidden></p>
     </div>
 
+    <button id="sky-bulb" class="speakers sky-bulb" type="button" aria-pressed="false" hidden>
+      <span class="led" aria-hidden="true"></span><span id="sky-bulb-label">Foco</span>
+    </button>
+
     <aside class="channel channel-light" id="light" aria-label="Brillo" hidden>
       <button class="step" id="light-up" type="button" aria-label="Más brillo">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M11 1.5h2v4h-2zM11 18.5h2v4h-2zM1.5 11h4v2h-4zM18.5 11h4v2h-4zM4.2 5.6l1.4-1.4 2.8 2.8-1.4 1.4zM15.6 17l1.4-1.4 2.8 2.8-1.4 1.4zM4.2 18.4l2.8-2.8 1.4 1.4-2.8 2.8zM15.6 7l2.8-2.8 1.4 1.4-2.8 2.8z"/></svg>
@@ -105,12 +109,65 @@
       <output id="light-value" class="channel-value">–</output>
     </aside>
   </section>
+
+  <section class="view lamp" id="view-bulb" aria-label="Luz">
+    <div class="lamp-main">
+      <header class="lamp-head">
+        <h2 class="lamp-title" id="bulb-title">Luz</h2>
+        <button id="bulb-power" class="speakers lamp-power" type="button" aria-pressed="false">
+          <span class="led" aria-hidden="true"></span><span id="bulb-power-label">Encender</span>
+        </button>
+      </header>
+      <p class="lamp-state" id="bulb-state" role="status"></p>
+
+      <div class="lamp-presets" id="bulb-presets">
+        <button class="chip" type="button" data-b="100" data-k="4500">Leer</button>
+        <button class="chip" type="button" data-b="70" data-k="2700">Cálida</button>
+        <button class="chip" type="button" data-b="10" data-k="2500">Noche</button>
+        <button class="chip" type="button" data-b="100" data-k="6500">Día</button>
+      </div>
+
+      <p class="lamp-label">Blanco</p>
+      <div class="temp-strip" id="bulb-temp" role="slider" tabindex="0" aria-label="Temperatura de color"
+           aria-valuemin="2500" aria-valuemax="6500" aria-valuenow="2700">
+        <div class="temp-cap" id="bulb-temp-cap"></div>
+      </div>
+
+      <p class="lamp-label">Color</p>
+      <div class="swatches" id="bulb-swatches">
+        <button class="swatch" type="button" data-h="0" aria-label="Rojo"></button>
+        <button class="swatch" type="button" data-h="25" aria-label="Naranja"></button>
+        <button class="swatch" type="button" data-h="50" aria-label="Amarillo"></button>
+        <button class="swatch" type="button" data-h="120" aria-label="Verde"></button>
+        <button class="swatch" type="button" data-h="180" aria-label="Cian"></button>
+        <button class="swatch" type="button" data-h="230" aria-label="Azul"></button>
+        <button class="swatch" type="button" data-h="275" aria-label="Morado"></button>
+        <button class="swatch" type="button" data-h="320" aria-label="Rosa"></button>
+      </div>
+    </div>
+
+    <aside class="channel channel-bulb" aria-label="Brillo del foco">
+      <button class="step" id="bulb-up" type="button" aria-label="Más brillo del foco">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4h3v6.5H20v3h-6.5V20h-3v-6.5H4v-3h6.5z"/></svg>
+      </button>
+      <div class="rail" id="bulb-rail" role="slider" tabindex="0" aria-label="Brillo del foco"
+           aria-valuemin="1" aria-valuemax="100" aria-valuenow="0" aria-orientation="vertical">
+        <div class="rail-fill" id="bulb-fill"></div>
+        <div class="rail-cap" id="bulb-cap"></div>
+      </div>
+      <button class="step" id="bulb-down" type="button" aria-label="Menos brillo del foco">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5h16v3H4z"/></svg>
+      </button>
+      <output id="bulb-value" class="channel-value">–</output>
+    </aside>
+  </section>
   </div>
 
   <div class="dots" aria-hidden="true">
     <span class="dot" data-go="0"></span>
     <span class="dot" data-go="1"></span>
     <span class="dot" data-go="2"></span>
+    <span class="dot" data-go="3" id="dot-bulb" hidden></span>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>

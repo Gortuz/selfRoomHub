@@ -4,6 +4,7 @@
 
   var DEVICE = "parlantes";   // id del enchufe en devices.yaml
   var BT = "parlantes";       // id en la sección bluetooth de devices.yaml
+  var BULB = "foco";          // id del foco en devices.yaml (si no existe, la vista Luz no aparece)
   var NIGHT_FROM = 23, NIGHT_TO = 6;
 
   var $ = function (id) { return document.getElementById(id); };
@@ -578,11 +579,11 @@
   }
 
 
-  // --- Vistas: Letra (0) ← Música (1) → Reloj (2) ---
+  // --- Vistas: Letra (0) ← Música (1) → Reloj (2) → Luz (3, solo con foco) ---
   var views = $("views");
-  var view = 1;
+  var view = 1, maxView = 2;
   function setView(i) {
-    view = Math.max(0, Math.min(2, i));
+    view = Math.max(0, Math.min(maxView, i));
     views.setAttribute("data-view", view);
     views.style.transform = "";
     if (view === 0) syncLyrics(true);
@@ -608,7 +609,7 @@
   // Deslizar con el dedo: solo si el gesto es horizontal y no empieza en el fader
   var swipe = null;
   views.addEventListener("pointerdown", function (e) {
-    if (e.target.closest && e.target.closest(".rail")) return;
+    if (e.target.closest && e.target.closest(".rail, .temp-strip")) return;
     swipe = { x: e.clientX, y: e.clientY, dx: 0, active: false };
   });
   views.addEventListener("pointermove", function (e) {
@@ -886,8 +887,196 @@
   }
   setInterval(updateAwake, 5000);
 
+  // --- Foco: botón en el reloj y vista Luz ---
+  var K_MIN = 2500, K_MAX = 6500;
+  var bulb = { ready: false, online: false, on: false, light: null };
+  var bulbPending = 0;   // órdenes en vuelo: el sondeo no pisa lo que se acaba de tocar
+
+  function mix(a, b, t) {
+    return a.map(function (v, i) { return Math.round(v + (b[i] - v) * t); });
+  }
+  // Color aproximado de la luz para teñir la interfaz
+  function bulbColor(l) {
+    if (!l) return null;
+    if (l.hue !== null && l.hue !== undefined) {
+      return "hsl(" + l.hue + ", " + Math.max(35, l.saturation) + "%, 60%)";
+    }
+    var t = Math.max(0, Math.min(1, ((l.color_temp || 2700) - K_MIN) / (K_MAX - K_MIN)));
+    var warm = [255, 157, 60], mid = [255, 231, 200], cool = [227, 236, 255];
+    var rgb = t < 0.5 ? mix(warm, mid, t * 2) : mix(mid, cool, (t - 0.5) * 2);
+    return "rgb(" + rgb.join(",") + ")";
+  }
+  function describeBulb() {
+    if (!bulb.online) return "El foco no responde: revisa que tenga corriente.";
+    if (!bulb.on) return "Apagado";
+    var l = bulb.light || {};
+    var what = l.hue !== null && l.hue !== undefined ? "color" : (l.color_temp ? l.color_temp + " K" : "");
+    return "Encendido · " + (l.brightness || "–") + " %" + (what ? " · " + what : "");
+  }
+  function showBulbBrightness(v) {
+    $("bulb-value").textContent = v ? v + " %" : "–";
+    $("bulb-fill").style.height = (v || 0) + "%";
+    $("bulb-cap").style.bottom = (v || 0) + "%";
+    $("bulb-rail").setAttribute("aria-valuenow", v || 0);
+  }
+  function showBulbTemp(k) {
+    var t = (Math.max(K_MIN, Math.min(K_MAX, k)) - K_MIN) / (K_MAX - K_MIN);
+    $("bulb-temp-cap").style.left = (t * 100) + "%";
+    $("bulb-temp").setAttribute("aria-valuenow", k);
+  }
+  function renderBulb() {
+    $("sky-bulb").hidden = !bulb.ready;
+    $("dot-bulb").hidden = !bulb.ready;
+    if (!bulb.ready) return;
+    var l = bulb.light || {}, on = bulb.online && bulb.on;
+    var color = on ? bulbColor(l) : null;
+    if (color) document.documentElement.style.setProperty("--bulb", color);
+    else document.documentElement.style.removeProperty("--bulb");
+    $("sky-bulb").setAttribute("aria-pressed", on ? "true" : "false");
+    $("sky-bulb-label").textContent = bulb.online ? (on ? "Foco " + (l.brightness || "") + " %" : "Foco") : "Foco sin señal";
+    $("bulb-power").setAttribute("aria-pressed", on ? "true" : "false");
+    $("bulb-power-label").textContent = on ? "Apagar" : "Encender";
+    $("bulb-power").disabled = !bulb.online;
+    $("view-bulb").classList.toggle("off", !on);
+    $("bulb-state").textContent = describeBulb();
+    $("bulb-state").classList.toggle("alert", !bulb.online);
+    if (!bulbDragging) showBulbBrightness(on ? l.brightness : 0);
+    if (!tempDragging && l.color_temp) showBulbTemp(l.color_temp);
+    $("bulb-temp-cap").hidden = !(on && l.color_temp);
+    var swatches = document.querySelectorAll("#bulb-swatches .swatch");
+    for (var i = 0; i < swatches.length; i++) {
+      var h = parseInt(swatches[i].getAttribute("data-h"), 10);
+      swatches[i].style.background = "hsl(" + h + ", 100%, 55%)";
+      swatches[i].classList.toggle("on", on && l.hue !== null && l.hue !== undefined && hueDistance(l.hue, h) < 8);
+    }
+    var chips = document.querySelectorAll("#bulb-presets .chip");
+    for (var j = 0; j < chips.length; j++) {
+      chips[j].classList.toggle("on", on && !l.hue && l.brightness === +chips[j].getAttribute("data-b") &&
+        l.color_temp === +chips[j].getAttribute("data-k"));
+    }
+  }
+  function applyBulb(d) {
+    bulb.ready = true;
+    bulb.online = d.online;
+    bulb.on = !!d.on;
+    if (d.light) bulb.light = d.light;
+    if (maxView < 3) maxView = 3;
+    renderBulb();
+  }
+  function refreshBulb() {
+    if (!token || bulbPending) return;
+    api("GET", "/devices/" + BULB)
+      .then(function (d) { if (!bulbPending) applyBulb(d); })
+      .catch(function (e) {
+        if (e.status === 404) { bulb.ready = false; maxView = 2; if (view > 2) setView(2); renderBulb(); }
+      });
+  }
+  function bulbSend(path, data) {
+    bulbPending++;
+    $("view-bulb").classList.add("busy");
+    return api("POST", "/devices/" + BULB + path, data)
+      .then(applyBulb)
+      .catch(function (e) {
+        $("bulb-state").textContent = "No se pudo: " + e.message;
+        $("bulb-state").classList.add("alert");
+      })
+      .then(function () {
+        bulbPending--;
+        if (!bulbPending) $("view-bulb").classList.remove("busy");
+      });
+  }
+  function bulbLight(data) {
+    // Respuesta inmediata en pantalla; el backend confirma con el estado real
+    bulb.on = true;
+    bulb.light = bulb.light || {};
+    for (var k in data) bulb.light[k] = data[k];
+    if (data.hue !== undefined) bulb.light.color_temp = null;
+    if (data.color_temp !== undefined) { bulb.light.hue = null; bulb.light.saturation = null; }
+    renderBulb();
+    return bulbSend("/light", data);
+  }
+
+  $("sky-bulb").addEventListener("click", function () { bulbSend("/toggle"); });
+  $("bulb-power").addEventListener("click", function () { bulbSend("/power", { on: !(bulb.online && bulb.on) }); });
+
+  function onDataButtons(containerId, handler) {
+    $(containerId).addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("button") : null;
+      if (b) handler(b);
+    });
+  }
+  onDataButtons("bulb-presets", function (b) {
+    bulbLight({ brightness: +b.getAttribute("data-b"), color_temp: +b.getAttribute("data-k") });
+  });
+  onDataButtons("bulb-swatches", function (b) {
+    bulbLight({ hue: +b.getAttribute("data-h"), saturation: 100 });
+  });
+
+  // Brillo: se ve en vivo al arrastrar y se manda al soltar
+  var bulbRail = $("bulb-rail"), bulbDragging = false;
+  function bulbAt(clientY) {
+    var r = bulbRail.getBoundingClientRect();
+    return Math.max(1, Math.min(100, Math.round((1 - (clientY - r.top) / r.height) * 100)));
+  }
+  bulbRail.addEventListener("pointerdown", function (e) {
+    bulbDragging = true;
+    if (bulbRail.setPointerCapture && e.pointerId !== undefined) bulbRail.setPointerCapture(e.pointerId);
+    bulbRail.classList.add("dragging");
+    showBulbBrightness(bulbAt(e.clientY));
+    e.preventDefault();
+  });
+  bulbRail.addEventListener("pointermove", function (e) { if (bulbDragging) showBulbBrightness(bulbAt(e.clientY)); });
+  bulbRail.addEventListener("pointerup", function (e) {
+    if (!bulbDragging) return;
+    bulbDragging = false;
+    bulbRail.classList.remove("dragging");
+    bulbLight({ brightness: bulbAt(e.clientY) });
+  });
+  bulbRail.addEventListener("pointercancel", function () { bulbDragging = false; bulbRail.classList.remove("dragging"); renderBulb(); });
+  function bulbStep(n) {
+    var cur = bulb.on && bulb.light ? bulb.light.brightness || 0 : 0;
+    bulbLight({ brightness: Math.max(1, Math.min(100, cur + n)) });
+  }
+  $("bulb-up").addEventListener("click", function () { bulbStep(10); });
+  $("bulb-down").addEventListener("click", function () { bulbStep(-10); });
+  bulbRail.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowUp") { bulbStep(10); e.preventDefault(); }
+    if (e.key === "ArrowDown") { bulbStep(-10); e.preventDefault(); }
+  });
+
+  // Temperatura: franja de cálida a fría
+  var tempStrip = $("bulb-temp"), tempDragging = false;
+  function tempAt(clientX) {
+    var r = tempStrip.getBoundingClientRect();
+    var t = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    return Math.round((K_MIN + t * (K_MAX - K_MIN)) / 100) * 100;
+  }
+  tempStrip.addEventListener("pointerdown", function (e) {
+    tempDragging = true;
+    if (tempStrip.setPointerCapture && e.pointerId !== undefined) tempStrip.setPointerCapture(e.pointerId);
+    tempStrip.classList.add("dragging");
+    $("bulb-temp-cap").hidden = false;
+    showBulbTemp(tempAt(e.clientX));
+    e.preventDefault();
+  });
+  tempStrip.addEventListener("pointermove", function (e) { if (tempDragging) showBulbTemp(tempAt(e.clientX)); });
+  tempStrip.addEventListener("pointerup", function (e) {
+    if (!tempDragging) return;
+    tempDragging = false;
+    tempStrip.classList.remove("dragging");
+    bulbLight({ color_temp: tempAt(e.clientX) });
+  });
+  tempStrip.addEventListener("pointercancel", function () { tempDragging = false; tempStrip.classList.remove("dragging"); renderBulb(); });
+  tempStrip.addEventListener("keydown", function (e) {
+    var cur = (bulb.light && bulb.light.color_temp) || 2700;
+    if (e.key === "ArrowRight") { bulbLight({ color_temp: Math.min(K_MAX, cur + 500) }); e.preventDefault(); e.stopPropagation(); }
+    if (e.key === "ArrowLeft") { bulbLight({ color_temp: Math.max(K_MIN, cur - 500) }); e.preventDefault(); e.stopPropagation(); }
+  });
+
   tick();
   render();
+  refreshBulb();
+  setInterval(refreshBulb, 10000);
   refreshHealth(); refreshDevices(); refreshAudio(); refreshNowPlaying();
   setInterval(tick, 1000);
   setInterval(refreshNowPlaying, 2000);
