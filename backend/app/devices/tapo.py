@@ -52,6 +52,7 @@ class TapoDevice(Device):
         )
         if dev is None:
             raise KasaException(f"{self.address} no respondió al descubrimiento")
+        await dev.update()  # sin esto no hay módulos (luz) hasta la primera consulta
         return dev
 
     def _ensure_loop(self) -> asyncio.AbstractEventLoop:

@@ -179,3 +179,23 @@ def test_timeout_es_device_error():
     d, _ = make(Lento(), timeout=0.05)
     with pytest.raises(DeviceError, match="sin respuesta"):
         d.on()
+
+
+def test_discover_actualiza_antes_de_usar(monkeypatch):
+    """Discover entrega el dispositivo sin módulos: hay que leerlo antes de set_light."""
+    fl = FakeLight()
+
+    class SinModulos(FakeKasa):
+        async def update(self):
+            await super().update()
+            self.modules = {Module.Light: fl}
+
+    k = SinModulos()
+
+    async def fake_discover(host, **kw):
+        return k
+
+    monkeypatch.setattr("app.devices.tapo.Discover.discover_single", fake_discover)
+    d = TapoDevice("foco", "Foco", "1.2.3.4", "user", "pass")
+    d.set_light(brightness=40)
+    assert fl.states[-1].brightness == 40
