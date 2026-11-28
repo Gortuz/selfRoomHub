@@ -9,6 +9,7 @@ dependencies = [
     "tinytuya",
     "pyyaml",
     "python-dotenv",
+    "python-kasa>=0.13.0",
 ]
 
 [dependency-groups]

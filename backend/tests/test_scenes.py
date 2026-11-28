@@ -405,3 +405,45 @@ def test_wait_numero_sigue_funcionando_y_dict_invalido():
     for bad in ({"seconds": 99}, {"seconds": 2, "if_powered_on": "si"}, {"if_powered_on": True}):
         with pytest.raises(SceneError):
             parse({"s": [{"wait": bad}]})
+
+
+# --- light
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        {"light": {"device": "nada", "brightness": 5}},
+        {"light": {"brightness": 5}},
+        {"light": {"device": "lamp"}},
+        {"light": {"device": "lamp", "brightness": 0}},
+        {"light": {"device": "lamp", "hue": 10}},
+        {"light": {"device": "lamp", "hue": 10, "saturation": 5, "color_temp": 3000}},
+        {"light": {"device": "lamp", "brillo": 5}},
+        {"light": 5},
+    ],
+)
+def test_light_invalidos(step):
+    with pytest.raises(SceneError):
+        parse({"s": [step]})
+
+
+def test_ejecuta_light():
+    foco = FakeDevice("foco", "Foco", light=True)
+    ctx, _ = make_ctx(devices={"foco": foco, "lamp": FakeDevice("lamp", "L")})
+    steps = parse_scenes(
+        {
+            "s": [
+                {"light": {"device": "foco", "brightness": 20, "color_temp": 2500}},
+                {"light": {"device": "lamp", "brightness": 20}},
+                {"light": {"device": "foco", "color_temp": 9000}},
+            ]
+        },
+        ["foco", "lamp"],
+        [],
+    )["s"]
+    res = run_scene(steps, ctx)
+    assert [r["ok"] for r in res] == [True, False, False]
+    assert res[0]["detail"] == "foco: brillo 20 %, 2500 K"
+    st = foco.status()
+    assert st.on is True and (st.light.brightness, st.light.color_temp) == (20, 2500)

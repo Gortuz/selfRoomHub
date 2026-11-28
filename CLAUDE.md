@@ -27,8 +27,7 @@ Domótica casera para un cuarto, de bajo presupuesto y sin hub comercial. Un cel
 | Marca / ecosistema | Librería | Estado |
 |---|---|---|
 | Tuya / Smart Life | `tinytuya` | Primero en implementarse. Requiere ID y clave local de cada dispositivo. |
-| TP-Link Tapo | `tapo` | Pendiente. Verificar compatibilidad del modelo antes de usarlo. |
-| TP-Link Kasa | `python-kasa` | Pendiente. |
+| TP-Link Tapo / Kasa | `python-kasa` | Implementado (`type: tapo`): encendido, brillo, temperatura y color. Requiere cuenta TP-Link. Firmwares con cifrado TPAP necesitan "Third-Party Compatibility" activado en la app Tapo. |
 
 Agregar una marca nueva = escribir un adaptador que implemente la interfaz `Device`.
 
@@ -72,6 +71,7 @@ NFC / Tasker        ──┘        │
 - `POST /devices/{id}/power` con body `{"on": true|false}`
 - `POST /devices/{id}/toggle` (invierte el estado; útil para un solo sticker NFC o atajo)
 - `GET /scenes`, `POST /scenes/{name}`
+- `POST /devices/{id}/light` con body `{"brightness": 1..100, "color_temp": K}` o `{"hue": 0..360, "saturation": 0..100}` (enciende; 501 si no es foco, 422 fuera de rango)
 - `POST /devices/{id}/timer` con body `{"minutes": 0..720}` (apaga tras ese tiempo; 0 cancela; 501 si no hay temporizador)
 - `GET /mode`, `PUT /mode` con body `{"mode": "day"|"night"|"auto"}` (modo día/noche por horario o forzado)
 - `GET /routines`, `POST /routines/{name}` (ejecuta la escena de la ventana horaria actual; 409 si ninguna aplica)
@@ -105,8 +105,8 @@ selfRoomHub/
 │   │   ├── devices/
 │   │   │   ├── base.py        # interfaz Device
 │   │   │   ├── tuya.py
-│   │   │   ├── tapo.py
-│   │   │   └── kasa.py
+│   │   │   ├── light.py       # validación de ajustes de luz
+│   │   │   └── tapo.py        # Tapo / Kasa (python-kasa)
 │   │   ├── integrations/
 │   │   │   ├── spotify.py
 │   │   │   └── weather.py

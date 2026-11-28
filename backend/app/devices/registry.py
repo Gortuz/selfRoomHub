@@ -4,9 +4,14 @@ from typing import Any
 
 from app.devices.base import Device
 from app.devices.fake import FakeDevice
+from app.devices.tapo import TapoDevice
 from app.devices.tuya import TuyaDevice
 
-DEVICE_TYPES: dict[str, type[Device]] = {"tuya": TuyaDevice, "fake": FakeDevice}
+DEVICE_TYPES: dict[str, type[Device]] = {
+    "tuya": TuyaDevice,
+    "tapo": TapoDevice,
+    "fake": FakeDevice,
+}
 
 
 def build_device(spec: dict[str, Any]) -> Device:

@@ -6,6 +6,7 @@ Arranque:
 
 import asyncio
 import contextlib
+import dataclasses
 import html
 import logging
 import re
@@ -35,6 +36,7 @@ from app.battery_alerts import (
 )
 from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
+from app.devices.light import LightSettings
 from app.lyrics import LyricsClient, LyricsFetcher, LyricsUnavailable
 from app.media import CommandQueue, MediaCommand
 from app.mode import ModeState
@@ -80,6 +82,7 @@ def _state(device: Device) -> dict[str, object]:
         "online": st.online,
         "on": st.on,
         "timer": st.timer,
+        "light": dataclasses.asdict(st.light) if st.light else None,
     }
 
 
@@ -324,6 +327,19 @@ def create_app(
         except DeviceError as e:
             raise HTTPException(status_code=503, detail=str(e)) from e
         return {"id": device.id, "minutes": body.minutes}
+
+    @app.post("/devices/{device_id}/light", dependencies=[Depends(auth)])
+    def set_light(device_id: str, body: LightSettings) -> dict[str, object]:
+        device = get_device(device_id)
+        try:
+            device.set_light(**body.args())
+        except NotImplementedError as e:
+            raise HTTPException(status_code=501, detail=str(e)) from e
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        except DeviceError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+        return _state(device)
 
     @app.get("/mode", dependencies=[Depends(auth)])
     def read_mode() -> dict[str, str]:

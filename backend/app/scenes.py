@@ -15,13 +15,25 @@ from pydantic import ValidationError
 
 from app.bluetooth import BluetoothController, BluetoothError, BluetoothTarget
 from app.devices.base import Device, DeviceError
+from app.devices.light import LightSettings
 from app.media import CommandQueue, MediaCommand
 from app.mode import ModeState
 from app.soft_off import SoftPower
 from app.spotify import DeviceNotFound, SpotifyClient, SpotifyError
 
 NAME_RE = re.compile(r"^[a-z0-9_-]+$")
-STEP_KINDS = ("power", "toggle", "bluetooth", "media", "spotify", "wake", "wait", "timer", "mode")
+STEP_KINDS = (
+    "power",
+    "toggle",
+    "bluetooth",
+    "media",
+    "spotify",
+    "wake",
+    "wait",
+    "timer",
+    "mode",
+    "light",
+)
 MODE_VALUES = ("night", "day", "auto")
 MAX_TIMER_MIN = 720
 SPOTIFY_TYPES = ("artist", "album", "playlist", "track")
@@ -115,6 +127,18 @@ def _parse_step(raw: Any, devices: Collection[str], bt_ids: Collection[str]) -> 
         if not 0 <= minutes <= MAX_TIMER_MIN:
             raise SceneError(f"timer minutes debe estar entre 0 y {MAX_TIMER_MIN}")
         return Step("timer", {"device": device, "minutes": minutes})
+    if kind == "light":
+        rest = dict(body)
+        device = rest.pop("device", None)
+        if not isinstance(device, str):
+            raise SceneError("light exige device")
+        if device not in devices:
+            raise SceneError(f"dispositivo inexistente {device!r} (válidos: {_ids(devices)})")
+        try:
+            settings = LightSettings(**rest)
+        except ValidationError as e:
+            raise SceneError(f"light inválido: {e}") from e
+        return Step("light", {"device": device, "settings": settings})
     if kind == "bluetooth":
         target = body.get("id")
         if not isinstance(target, str):
@@ -271,6 +295,16 @@ def _do_step(step: Step, ctx: SceneContext) -> str:
         if a["minutes"] == 0:
             return f"temporizador de {device.id} cancelado"
         return f"{device.id} se apagará en {a['minutes']} min"
+    if step.kind == "light":
+        device = ctx.devices[a["device"]]
+        settings: LightSettings = a["settings"]
+        try:
+            device.set_light(**settings.args())
+        except NotImplementedError as e:
+            raise SceneError(f"{device.id} no es un foco regulable") from e
+        except ValueError as e:
+            raise SceneError(str(e)) from e
+        return f"{device.id}: {settings.describe()}"
     if step.kind == "mode":
         ctx.mode.set(a["mode"])
         return f"modo {a['mode']}"

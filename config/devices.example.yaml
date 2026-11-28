@@ -9,6 +9,12 @@ devices:
     address: 192.168.1.50
     local_key: ${TUYA_PARLANTES_KEY}
     version: "3.5"
+  - id: foco
+    name: Foco
+    type: tapo    # Tapo / Kasa (python-kasa); detecta protocolo y cifrado solo
+    address: 192.168.1.51
+    username: ${TAPO_USERNAME}   # cuenta TP-Link (la de la app Tapo)
+    password: ${TAPO_PASSWORD}
   - id: demo
     name: Dispositivo de prueba
     type: fake
@@ -19,7 +25,7 @@ bluetooth:
     name: Parlantes
     address: AA:BB:CC:DD:EE:FF
 
-# Opcional: escenas (lista de pasos: power, toggle, bluetooth, media, wake, wait)
+# Opcional: escenas (lista de pasos: power, toggle, light, bluetooth, media, wake, wait)
 scenes:
   musica:
     - power: { device: parlantes, on: true }
@@ -28,8 +34,10 @@ scenes:
     - media: { action: play_search, query: "Nombre de un artista", focus: artist }
   apagar_todo:
     - power: { device: parlantes, on: false }
+    - power: { device: foco, on: false }
   noche:
     - mode: night
+    - light: { device: foco, brightness: 15, color_temp: 2500 }   # cálida y tenue
     - power: { device: parlantes, on: true }
     - wait: 4
     - bluetooth: { id: parlantes, connect: true }
@@ -37,6 +45,7 @@ scenes:
     - timer: { device: parlantes, minutes: 45 }   # el enchufe apaga los parlantes solo
   dia:
     - mode: day
+    - light: { device: foco, brightness: 100, color_temp: 5000 }  # o hue/saturation para color
     - spotify: { uri: "spotify:playlist:XXXXXXXX", type: playlist }
 
 # Opcional: rutinas; ejecutan la escena cuya ventana horaria contiene la hora actual
