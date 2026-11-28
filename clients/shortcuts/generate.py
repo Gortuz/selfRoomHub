@@ -5,7 +5,8 @@ Uso (en una Mac):
         --url http://192.168.1.20:8000 --device parlantes \
         --bt-id parlantes --bt-address AA:BB:CC:DD:EE:FF --out /tmp/atajos
 
-Crea "Speakers on", "Speakers off", "Speakers", "Movie mode" y "Music mode".
+Crea atajos en español pensados para Siri: parlantes, modo película/música, foco (con --light),
+escenas y rutinas (--scene, --routine) y un menú de escenas (--menu). Ver README.md.
 El token queda dentro de cada atajo: no compartas los archivos generados.
 """
 
@@ -41,7 +42,27 @@ def _act(ident: str, **params) -> dict:
     return {"WFWorkflowActionIdentifier": f"is.workflow.actions.{ident}", "WFWorkflowActionParameters": params}
 
 
-def request(url: str, token: str, body_on: bool | None = None) -> dict:
+def _number(n: int) -> dict:
+    return {"Value": n, "WFSerializationType": "WFNumberSubstitutableState"}
+
+
+def _output(uuid_: str, name: str) -> dict:
+    """Texto que inserta la salida de otra acción (variable mágica)."""
+    return {
+        "Value": {
+            "string": "\ufffc",
+            "attachmentsByRange": {
+                "{0, 1}": {"OutputUUID": uuid_, "Type": "ActionOutput", "OutputName": name}
+            },
+        },
+        "WFSerializationType": "WFTextTokenString",
+    }
+
+
+def request(
+    url: str, token: str, body_on: bool | None = None, json: dict[str, int | dict] | None = None
+) -> dict:
+    """POST con token. json: números o valores ya serializados (p. ej. _output)."""
     params = {
         "UUID": _uuid(),
         "WFURL": url,
@@ -62,7 +83,37 @@ def request(url: str, token: str, body_on: bool | None = None) -> dict:
                 }
             ]
         )
+    if json:
+        params["WFHTTPBodyType"] = "JSON"
+        params["WFJSONValues"] = _dict(
+            [
+                {
+                    "WFItemType": 3,  # número
+                    "WFKey": _text(k),
+                    "WFValue": _text(str(v)) if isinstance(v, int) else v,
+                }
+                for k, v in json.items()
+            ]
+        )
     return _act("downloadurl", **params)
+
+
+def ask_number(prompt: str) -> tuple[str, dict]:
+    uid = _uuid()
+    return uid, _act("ask", UUID=uid, WFAskActionPrompt=prompt, WFInputType="Number")
+
+
+def menu(prompt: str, items: dict[str, list[dict]]) -> list[dict]:
+    """Elegir del menú: Siri lee las opciones y se responde con la voz."""
+    group = _uuid()
+    out = [_act("choosefrommenu", GroupingIdentifier=group, WFControlFlowMode=0,
+                WFMenuPrompt=prompt, WFMenuItems=list(items))]
+    for title, actions in items.items():
+        out.append(_act("choosefrommenu", GroupingIdentifier=group, WFControlFlowMode=1,
+                        WFMenuItemTitle=title))
+        out.extend(actions)
+    out.append(_act("choosefrommenu", GroupingIdentifier=group, WFControlFlowMode=2, UUID=_uuid()))
+    return out
 
 
 def shell(script: str) -> dict:
@@ -118,12 +169,16 @@ def build(
     bt_addr: str | None,
     scenes: dict[str, str] | None = None,
     routines: dict[str, str] | None = None,
+    light: str | None = None,
+    movie_scene: str | None = None,
+    menu_items: dict[str, str] | None = None,
+    menu_name: str = "Cuarto",
 ) -> dict[str, dict]:
     dev = f"{url}/devices/{device}"
     shortcuts = {
-        "Speakers on": [request(f"{dev}/power", token, True)],
-        "Speakers off": [request(f"{dev}/power", token, False)],
-        "Speakers": [request(f"{dev}/toggle", token)],
+        "Prende los parlantes": [request(f"{dev}/power", token, True)],
+        "Apaga los parlantes": [request(f"{dev}/power", token, False)],
+        "Parlantes": [request(f"{dev}/toggle", token)],
     }
     if bt_id and bt_addr:
         bt = f"{url}/bluetooth/{bt_id}"
@@ -131,21 +186,49 @@ def build(
         connect_mac = (
             f"for i in 1 2 3 4 5; do {BLUEUTIL} --connect {addr} && exit 0; sleep 2; done; exit 1"
         )
-        shortcuts["Movie mode"] = if_mac(
-            [
-                comment("Enciende, el servidor suelta el parlante y la Mac se conecta"),
+        if movie_scene:
+            # La escena enciende, ajusta la luz y suelta el parlante; la Mac se conecta después
+            release = [request(f"{url}/scenes/{movie_scene}", token)]
+            elsewhere = [*release, notify("Parlantes libres: conéctalos desde la Mac")]
+        else:
+            release = [
                 request(f"{dev}/power", token, True),
                 _act("delay", WFDelayTime=3),
                 request(f"{bt}/disconnect", token),
+            ]
+            elsewhere = [notify("El modo película solo funciona en la Mac")]
+        shortcuts["Modo película"] = if_mac(
+            [
+                comment("Enciende, el servidor suelta el parlante y la Mac se conecta"),
+                *release,
                 shell(connect_mac),
             ],
-            [notify("Movie mode solo funciona en la Mac")],
+            elsewhere,
         )
-        shortcuts["Music mode"] = [
+        shortcuts["Modo música"] = [
             request(f"{dev}/power", token, True),
             *if_mac([shell(f"{BLUEUTIL} --disconnect {addr}; sleep 1")], []),
             request(f"{bt}/connect", token),
         ]
+    if light:
+        foco = f"{url}/devices/{light}"
+        shortcuts["Foco"] = [request(f"{foco}/toggle", token)]
+        for label, b, k in (
+            ("Foco cálido", 70, 2700),
+            ("Foco blanco", 100, 5000),
+            ("Foco de noche", 10, 2500),
+        ):
+            shortcuts[label] = [request(f"{foco}/light", token, json={"brightness": b, "color_temp": k})]
+        ask_id, ask = ask_number("¿Qué brillo? Del 1 al 100")
+        shortcuts["Brillo del foco"] = [
+            ask,
+            request(f"{foco}/light", token, json={"brightness": _output(ask_id, "Provided Input")}),
+        ]
+    if menu_items:
+        shortcuts[menu_name] = menu(
+            "¿Qué quieres?",
+            {label: [request(f"{url}/scenes/{scene}", token)] for label, scene in menu_items.items()},
+        )
     # Un atajo por escena: una sola petición, la lógica vive en el backend
     for scene, label in (scenes or {}).items():
         shortcuts[label] = [request(f"{url}/scenes/{scene}", token)]
@@ -177,6 +260,16 @@ def main() -> None:
         metavar="RUTINA=NOMBRE",
         help="atajo que ejecuta una rutina por horario, p. ej. --routine cama=Cama (repetible)",
     )
+    ap.add_argument("--light", metavar="ID", help="id del foco: crea Foco, Foco cálido/blanco/de noche y Brillo del foco")
+    ap.add_argument("--movie-scene", metavar="ESCENA", help="escena que usa Modo película en vez de solo soltar el parlante")
+    ap.add_argument(
+        "--menu",
+        action="append",
+        default=[],
+        metavar="NOMBRE=ESCENA",
+        help="opción del menú 'Cuarto', p. ej. --menu Noche=noche (repetible, en orden)",
+    )
+    ap.add_argument("--menu-name", default="Cuarto", help="nombre del atajo con menú")
     args = ap.parse_args()
 
     token = os.environ.get("SELFROOMHUB_TOKEN")
@@ -186,8 +279,11 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
     scenes = dict(item.split("=", 1) for item in args.scene)
     routines = dict(item.split("=", 1) for item in args.routine)
+    menu_items = dict(item.split("=", 1) for item in args.menu)
     built = build(
-        args.url.rstrip("/"), token, args.device, args.bt_id, args.bt_address, scenes, routines
+        args.url.rstrip("/"), token, args.device, args.bt_id, args.bt_address, scenes, routines,
+        light=args.light, movie_scene=args.movie_scene, menu_items=menu_items,
+        menu_name=args.menu_name,
     )
     for name, wf in built.items():
         if args.only and name not in args.only:
